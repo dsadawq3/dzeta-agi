@@ -39,6 +39,9 @@ Run a 10-minute training smoke:
   --oscillators 65536 \
   --dimensions 192 \
   --tokens 12 \
+  --temperature 0.8 \
+  --learning-rate 0.32 \
+  --seed 12345 \
   --progress-seconds 30
 ```
 
@@ -51,7 +54,12 @@ On Windows PowerShell:
   --oscillators 65536 `
   --dimensions 192 `
   --tokens 12 `
+  --temperature 0.8 `
+  --learning-rate 0.32 `
+  --seed 12345 `
   --progress-seconds 30
 ```
 
 Current local logs are in `benchmarks/logs/`.
+
+The adaptive contrastive 10-minute run logs both positive observations and contrastive hard-negative updates. It is meant to show whether prompt continuations separate under a higher generation temperature; it is not a claim of general intelligence.

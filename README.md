@@ -16,24 +16,28 @@ What is real here is narrower and testable:
 - a CPU-first spectral oscillator field;
 - fixed Riemann zeta-zero tables used as a frequency basis;
 - prime-handle field state and p-adic/math-inspired diagnostics;
-- deterministic local generation experiments;
+- online spectral learning with explicit loss tracking and adaptive updates;
+- seedable stochastic generation instead of a fully deterministic path;
 - a small codebase that can be read, compiled, and criticized directly.
 
 The project should be judged by reproducible behavior, not by big claims.
 
 ## Core Idea
 
-Transformers learn large embedding spaces and attention weights from data. DZETA explores a different route: keep the mathematical basis fixed, then let token behavior emerge from field projection and oscillator competition.
+Transformers learn large embedding spaces and attention weights from data. DZETA explores a different route: keep the mathematical basis fixed, then let token behavior emerge from field projection, adaptive oscillator memory, and contrastive competition.
 
-The current public core has three main pieces:
+The current public core has four main pieces:
 
-1. **Riemann zeros as a spectral basis**  
+1. **Riemann zeros as a spectral basis**
    The first 1000 non-trivial zeta-zero ordinates provide a fixed frequency table for field projection.
 
-2. **Oscillator field memory**  
-   Tokens are represented by query/key-like spectral vectors. Generation advances by matching the current field projection against stored oscillators.
+2. **Adaptive oscillator field memory**
+   Tokens are represented by learned spectral key/query vectors, p-adic signatures, and a phase bridge from context state to next state. Repeated observations update those vectors with a decaying online learning rate and a tracked mean loss.
 
-3. **Prime and p-adic field diagnostics**  
+3. **Context prototypes and contrastive negatives**
+   Frequent tokens no longer collapse into one global vector only. Each token can keep several context prototypes, and hard-negative contexts are stored as repulsive traces so similar prompts can be separated instead of all falling into the same attractor.
+
+4. **Prime and p-adic field diagnostics**
    Prime-indexed handles, zeta rhythm, p-adic distance, information metrics, Langlands-style signatures, quantum-chaos diagnostics, and variational field energy are used as finite computational probes.
 
 This is not claimed to be the final path to AGI. It is a concrete experiment in making an intelligence substrate that is small, local, inspectable, and less dependent on brute-force scale.
@@ -77,6 +81,7 @@ Use the headers from your own C++20 file:
 
 int main() {
     dzeta::OscillatorField field(65536, 192);
+    field.set_generation_temperature(0.8L);
     field.learn("def hello(name): return name");
 
     std::cout << field.forward("def", 8) << "\n";
@@ -103,19 +108,23 @@ Without CMake:
 ```bash
 g++ -std=c++20 -O2 -I src -I src/dzeta tests/smoke.cpp -o dzeta_smoke
 ./dzeta_smoke
+
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/learning.cpp -o dzeta_learning
+./dzeta_learning
 ```
 
 ## Training Benchmark
 
 The repository includes a small external-dataset training smoke in `benchmarks/`.
 
-It can fetch a 1000-row sample from Hugging Face `roneneldan/TinyStories`, train the oscillator field for a bounded CPU-only run, and log before/after prompt continuations. The current 10-minute local run is recorded in:
+It can fetch a 1000-row sample from Hugging Face `roneneldan/TinyStories`, train the oscillator field for a bounded CPU-only run, and log before/after prompt continuations. Current local runs are recorded in:
 
 ```text
 benchmarks/logs/2026-06-28-tinystories-10min.md
+benchmarks/logs/2026-06-28-adaptive-contrastive-10min.md
 ```
 
-The result is a baseline, not a breakthrough claim: after 10 minutes the system moves from empty prompt continuations to non-empty TinyStories-shaped continuations, but the outputs are still associative rather than coherent long-form generation.
+The adaptive contrastive run uses 65,536 oscillator capacity, 192 spectral dimensions, temperature 0.8, and a fixed seed for reproducibility. It reached 85,134 observations and 113,510 contrastive updates in 10 minutes on the local CPU. The outputs are more diverse than the original deterministic baseline, but still associative short continuations rather than coherent long-form generation.
 
 ## Design Principles
 
@@ -128,8 +137,9 @@ The result is a baseline, not a breakthrough claim: after 10 minutes the system 
 ## Current Limitations
 
 - The current public repository is a core engine, not a full application.
-- There is a small smoke test, but no full benchmark suite or CI wired into this repository yet.
+- There are smoke and learning tests, but no full benchmark suite or CI wired into this repository yet.
 - Generation quality is experimental and should not be compared to trained LLMs as if it were the same class of system.
+- The 10-minute TinyStories run still completed only two corpus passes on the local CPU; stronger claims require longer runs, more seeds, and task-specific evaluation.
 - The math layers are finite diagnostics and analogues, not theorem-proving machinery.
 
 ## Roadmap
@@ -137,7 +147,7 @@ The result is a baseline, not a breakthrough claim: after 10 minutes the system 
 - Add a clean build/test harness.
 - Add reproducible examples that do not depend on local machine paths.
 - Keep generated binaries, training dumps, and local corpora out of the repository.
-- Grow the verifier and benchmark layer before making stronger claims.
+- Grow the verifier and benchmark layer before making stronger claims, including multi-seed prompt differentiation tests.
 - Preserve CPU-first accessibility as the system gets more capable.
 
 ## License

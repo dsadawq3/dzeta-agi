@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -22,6 +23,9 @@ struct Options {
     std::size_t max_line_chars = 512;
     std::size_t progress_seconds = 30;
     std::size_t tokens = 12;
+    std::uint64_t seed = 0;
+    long double temperature = 0.08L;
+    long double learning_rate = 0.32L;
 };
 
 void print_usage() {
@@ -29,7 +33,8 @@ void print_usage() {
         << "Usage: dzeta_train_smoke --corpus PATH [--seconds N] [--oscillators N]\n"
         << "                         [--dimensions N] [--max-lines N]\n"
         << "                         [--max-line-chars N] [--progress-seconds N]\n"
-        << "                         [--tokens N]\n";
+        << "                         [--tokens N] [--seed N]\n"
+        << "                         [--temperature X] [--learning-rate X]\n";
 }
 
 std::size_t parse_size(std::string_view value) {
@@ -37,6 +42,13 @@ std::size_t parse_size(std::string_view value) {
         throw std::runtime_error("empty numeric value");
     }
     return static_cast<std::size_t>(std::stoull(std::string(value)));
+}
+
+long double parse_float(std::string_view value) {
+    if (value.empty()) {
+        throw std::runtime_error("empty floating-point value");
+    }
+    return std::stold(std::string(value));
 }
 
 Options parse_options(int argc, char** argv) {
@@ -69,6 +81,12 @@ Options parse_options(int argc, char** argv) {
             options.progress_seconds = parse_size(require_value(arg));
         } else if (arg == "--tokens") {
             options.tokens = parse_size(require_value(arg));
+        } else if (arg == "--seed") {
+            options.seed = static_cast<std::uint64_t>(std::stoull(require_value(arg)));
+        } else if (arg == "--temperature") {
+            options.temperature = parse_float(require_value(arg));
+        } else if (arg == "--learning-rate") {
+            options.learning_rate = parse_float(require_value(arg));
         } else {
             throw std::runtime_error("unknown argument: " + std::string(arg));
         }
@@ -122,7 +140,9 @@ int main(int argc, char** argv) {
     try {
         const auto options = parse_options(argc, argv);
         const auto lines = read_corpus(options);
-        dzeta::OscillatorField field(options.oscillators, options.dimensions);
+        dzeta::OscillatorField field(options.oscillators, options.dimensions, options.seed);
+        field.set_generation_temperature(options.temperature);
+        field.set_learning_rate(options.learning_rate);
         const std::vector<std::string> prompts{
             "Once upon a time",
             "The little robot",
@@ -139,6 +159,12 @@ int main(int argc, char** argv) {
         std::cout << "seconds_budget=" << options.seconds << "\n";
         std::cout << "progress_seconds=" << options.progress_seconds << "\n";
         std::cout << "tokens_per_prompt=" << options.tokens << "\n";
+        std::cout << "seed=" << options.seed << "\n";
+        std::cout << "generation_temperature=" << static_cast<double>(options.temperature) << "\n";
+        std::cout << "learning_rate=" << static_cast<double>(options.learning_rate) << "\n";
+        std::cout << "observations_initial=" << field.observation_count() << "\n";
+        std::cout << "contrastive_updates_initial=" << field.contrastive_update_count() << "\n";
+        std::cout << "mean_loss_initial=" << static_cast<double>(field.mean_loss()) << "\n";
         print_generation_block(field, "before", prompts, options.tokens);
         std::cout << std::flush;
 
@@ -159,7 +185,10 @@ int main(int argc, char** argv) {
                     const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - started).count();
                     std::cerr << "progress elapsed_ms=" << elapsed_ms
                               << " lines_seen=" << lines_seen
-                              << " oscillators=" << field.size() << "\n";
+                              << " oscillators=" << field.size()
+                              << " observations=" << field.observation_count()
+                              << " contrastive_updates=" << field.contrastive_update_count()
+                              << " mean_loss=" << static_cast<double>(field.mean_loss()) << "\n";
                     next_progress = now + std::chrono::seconds(options.progress_seconds);
                 }
             }
@@ -174,6 +203,9 @@ int main(int argc, char** argv) {
         std::cout << "lines_seen=" << lines_seen << "\n";
         std::cout << "lines_per_second=" << static_cast<double>(static_cast<long double>(lines_seen) / elapsed_seconds) << "\n";
         std::cout << "oscillators_after=" << field.size() << "\n";
+        std::cout << "observations_after=" << field.observation_count() << "\n";
+        std::cout << "contrastive_updates_after=" << field.contrastive_update_count() << "\n";
+        std::cout << "mean_loss_after=" << static_cast<double>(field.mean_loss()) << "\n";
         print_generation_block(field, "after", prompts, options.tokens);
         std::cout << "dzeta_train_smoke_end\n";
         return 0;
