@@ -1,0 +1,34 @@
+dzeta_train_smoke_begin
+corpus_path=benchmarks\data\tinystories_sample.txt
+corpus_lines=1000
+oscillators_limit=65536
+dimensions=192
+seconds_budget=600
+progress_seconds=30
+tokens_per_prompt=12
+before_prompt_1=Once upon a time
+before_output_1=
+before_prompt_2=The little robot
+before_output_2=
+before_prompt_3=A safe assistant
+before_output_3=
+before_prompt_4=The child learned
+before_output_4=
+before_prompt_5=Open intelligence
+before_output_5=
+elapsed_ms=600000
+epochs_completed=532
+lines_seen=531756
+lines_per_second=886.26
+oscillators_after=3680
+after_prompt_1=Once upon a time
+after_output_1=Once upon time queen bridge guard pale gem feeding goat clever fox
+after_prompt_2=The little robot
+after_output_2=museum dinos creatures taken art paintings pin source wall nod distant feeding
+after_prompt_3=A safe assistant
+after_output_3=help better feel but sad felt at looked be friends shore feeding
+after_prompt_4=The child learned
+after_output_4=delay stair giggled dizzy pressed spun separate shouted This siblings Meri two
+after_prompt_5=Open intelligence
+after_output_5=scary tall door windows brave inside In bird fly free opened flew
+dzeta_train_smoke_end

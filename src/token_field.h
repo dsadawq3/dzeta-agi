@@ -143,7 +143,6 @@ public:
             std::partial_sort(raw.begin(), raw.begin() + std::min<std::size_t>(64, raw.size()),
                               raw.end(), std::greater<>());
             std::size_t K = std::min<std::size_t>(64, raw.size());
-            long double max_s = raw[0].first;
             // lateral inhibition: suppress similar oscillators
             std::vector<std::pair<long double, std::size_t>> inhibited;
             for (std::size_t t = 0; t < K; ++t) {

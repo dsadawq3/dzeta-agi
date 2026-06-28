@@ -17,3 +17,6 @@ enable_testing()
 add_executable(dzeta_smoke tests/smoke.cpp)
 target_link_libraries(dzeta_smoke PRIVATE dzeta_core)
 add_test(NAME dzeta_smoke COMMAND dzeta_smoke)
+
+add_executable(dzeta_train_smoke benchmarks/train_smoke.cpp)
+target_link_libraries(dzeta_train_smoke PRIVATE dzeta_core)

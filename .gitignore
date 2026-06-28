@@ -2,3 +2,5 @@ build/
 *.exe
 
 .DS_Store
+
+benchmarks/data/

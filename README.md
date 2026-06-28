@@ -105,6 +105,18 @@ g++ -std=c++20 -O2 -I src -I src/dzeta tests/smoke.cpp -o dzeta_smoke
 ./dzeta_smoke
 ```
 
+## Training Benchmark
+
+The repository includes a small external-dataset training smoke in `benchmarks/`.
+
+It can fetch a 1000-row sample from Hugging Face `roneneldan/TinyStories`, train the oscillator field for a bounded CPU-only run, and log before/after prompt continuations. The current 10-minute local run is recorded in:
+
+```text
+benchmarks/logs/2026-06-28-tinystories-10min.md
+```
+
+The result is a baseline, not a breakthrough claim: after 10 minutes the system moves from empty prompt continuations to non-empty TinyStories-shaped continuations, but the outputs are still associative rather than coherent long-form generation.
+
 ## Design Principles
 
 - **Local first:** the core should run on ordinary CPU hardware.
