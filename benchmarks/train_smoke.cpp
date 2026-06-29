@@ -26,6 +26,8 @@ struct Options {
     std::uint64_t seed = 0;
     long double temperature = 0.08L;
     long double learning_rate = 0.32L;
+    std::size_t threads = 0;
+    std::size_t parallel_min_dimensions = 2048;
 };
 
 void print_usage() {
@@ -34,7 +36,8 @@ void print_usage() {
         << "                         [--dimensions N] [--max-lines N]\n"
         << "                         [--max-line-chars N] [--progress-seconds N]\n"
         << "                         [--tokens N] [--seed N]\n"
-        << "                         [--temperature X] [--learning-rate X]\n";
+        << "                         [--temperature X] [--learning-rate X]\n"
+        << "                         [--threads N] [--parallel-min-dim N]\n";
 }
 
 std::size_t parse_size(std::string_view value) {
@@ -87,6 +90,10 @@ Options parse_options(int argc, char** argv) {
             options.temperature = parse_float(require_value(arg));
         } else if (arg == "--learning-rate") {
             options.learning_rate = parse_float(require_value(arg));
+        } else if (arg == "--threads") {
+            options.threads = parse_size(require_value(arg));
+        } else if (arg == "--parallel-min-dim") {
+            options.parallel_min_dimensions = parse_size(require_value(arg));
         } else {
             throw std::runtime_error("unknown argument: " + std::string(arg));
         }
@@ -143,6 +150,8 @@ int main(int argc, char** argv) {
         dzeta::OscillatorField field(options.oscillators, options.dimensions, options.seed);
         field.set_generation_temperature(options.temperature);
         field.set_learning_rate(options.learning_rate);
+        field.set_thread_count(options.threads);
+        field.set_parallel_min_dimensions(options.parallel_min_dimensions);
         const std::vector<std::string> prompts{
             "Once upon a time",
             "The little robot",
@@ -162,6 +171,8 @@ int main(int argc, char** argv) {
         std::cout << "seed=" << options.seed << "\n";
         std::cout << "generation_temperature=" << static_cast<double>(options.temperature) << "\n";
         std::cout << "learning_rate=" << static_cast<double>(options.learning_rate) << "\n";
+        std::cout << "threads=" << field.thread_count() << "\n";
+        std::cout << "parallel_min_dimensions=" << options.parallel_min_dimensions << "\n";
         std::cout << "observations_initial=" << field.observation_count() << "\n";
         std::cout << "contrastive_updates_initial=" << field.contrastive_update_count() << "\n";
         std::cout << "mean_loss_initial=" << static_cast<double>(field.mean_loss()) << "\n";

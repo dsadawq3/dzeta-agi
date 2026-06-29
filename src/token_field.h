@@ -19,6 +19,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -41,14 +42,19 @@ public:
                              std::uint64_t seed = 0)
         : max_osc_(std::max<std::size_t>(128, max_osc)),
           dim_(std::max<std::size_t>(16, dim)),
+          thread_count_(default_thread_count()),
+          parallel_min_dimensions_(default_parallel_min_dimensions()),
           rng_(seed == 0 ? entropy_seed() : seed) {
         steps_.resize(dim_);
         std::size_t nz = zeta_zero_count();
+        zeta_basis_.resize(dim_);
         for (std::size_t z = 0; z < dim_; ++z) {
             if (z < 64) steps_[z] = 1;           // zeros 0-63, fine
             else if (z < 128) steps_[z] = 4;     // zeros 64-127, every 4th
             else steps_[z] = nz / dim_;           // rest
+            zeta_basis_[z] = zeta_zero((z * steps_[z]) % nz);
         }
+        initialize_seed_projection(64);
     }
 
     bool bad_token(const std::string& t) const {
@@ -79,6 +85,17 @@ public:
         auto tokens = tokenize_code(text, std::min<std::size_t>(text.size(), 128));
         if (tokens.size() < 3) { embed(text); return; }
         embed(text);
+        struct FieldProjection {
+            std::string text;
+            std::vector<cx> ampl;
+            std::vector<long double> padic;
+            bool valid = false;
+        };
+        auto make_projection = [&](std::string projection_text) {
+            auto [ampl, padic] = seed_weyl_transform(projection_text);
+            return FieldProjection{std::move(projection_text), std::move(ampl), std::move(padic), true};
+        };
+        FieldProjection cached_next;
         std::vector<std::string> context_tokens;
         for (std::size_t ti = 0; ti < tokens.size(); ++ti) {
             if (bad_token(tokens[ti])) {
@@ -97,38 +114,50 @@ public:
                 continue;
             }
 
-            auto f_context = make_seed_field_state(context_prefix, 64);
-            auto [context_ampl, context_padic] = weyl_transform(f_context);
-            auto f_full = make_seed_field_state(token_prefix, 64);
-            auto [full_ampl, full_padic] = weyl_transform(f_full);
-            if (std::all_of(context_ampl.begin(), context_ampl.end(), [](cx v) { return std::abs(v) < 1e-30L; })) {
+            FieldProjection context_projection;
+            if (cached_next.valid && cached_next.text == context_prefix) {
+                context_projection = std::move(cached_next);
+                cached_next = {};
+            } else {
+                context_projection = make_projection(context_prefix);
+            }
+            FieldProjection full_projection = make_projection(token_prefix);
+            if (std::all_of(context_projection.ampl.begin(), context_projection.ampl.end(), [](cx v) {
+                    return std::abs(v) < 1e-30L;
+                })) {
                 push_context_token(context_tokens, tokens[ti]);
+                cached_next = {};
                 continue;
             }
 
-            normalize_complex(context_ampl);
-            normalize_complex(full_ampl);
-            auto transition = spectral_bridge(context_ampl, full_ampl);
+            normalize_complex(context_projection.ampl);
+            normalize_complex(full_projection.ampl);
+            auto transition = spectral_bridge(context_projection.ampl, full_projection.ampl);
             update_oscillator(oscs_[positive_index],
-                              context_ampl,
-                              full_ampl,
+                              context_projection.ampl,
+                              full_projection.ampl,
                               transition,
-                              context_padic,
-                              full_padic,
+                              context_projection.padic,
+                              full_projection.padic,
                               lexical_tail(context_prefix));
-            update_contrastive_negatives(positive_index, context_ampl, context_padic);
+            update_contrastive_negatives(positive_index, context_projection.ampl, context_projection.padic);
             push_context_token(context_tokens, tokens[ti]);
+            if (context_string(context_tokens) == full_projection.text) {
+                cached_next = std::move(full_projection);
+            } else {
+                cached_next = {};
+            }
         }
     }
 
     std::string forward(std::string_view text, std::size_t max_tokens = 24) {
-        auto field = make_seed_field_state(text, 64);
-        auto [fp, current_padic] = weyl_transform(field);
+        auto [fp, current_padic] = seed_weyl_transform(text);
         std::string out;
         std::set<std::string> used;
         auto normalize = [&]() {
-            cx n = 0; for (auto v : fp) n += v * std::conj(v);
-            long double fn = std::sqrt(std::abs(n));
+            long double n = 0.0L;
+            for (auto v : fp) n += complex_norm(v);
+            long double fn = std::sqrt(n);
             if (fn > 1e-30L) for (auto& v : fp) v /= fn;
         };
         normalize();
@@ -146,7 +175,10 @@ public:
         for (std::size_t s = 0; s < max_tokens; ++s) {
             for (std::size_t z = 0; z < dim_; ++z) {
                 long double theta = static_cast<long double>(s) * 0.005L * (1.0L + static_cast<long double>(z) * 0.1L);
-                fp[z] *= cx(std::cos(theta), std::sin(theta));
+                long double st = 0.0L;
+                long double ct = 1.0L;
+                sincos_ld(theta, st, ct);
+                fp[z] *= cx(ct, st);
             }
 
             struct Candidate {
@@ -224,7 +256,7 @@ public:
                     cx dm = 0;
                     const auto& key = candidate_key(candidate);
                     for (std::size_t j = 0; j < dim_; ++j) {
-                        dm += std::conj(key[j]) * fp[j];
+                        dm += conjugate_multiply(key[j], fp[j]);
                     }
                     const long double padic_match = 0.5L + 0.5L * cosine(current_padic, candidate_padic(candidate));
                     const long double observations =
@@ -234,8 +266,8 @@ public:
                         std::clamp(static_cast<long double>(oscs_[i].token.size()) / 7.0L, 0.55L, 1.35L);
                     const long double lexical_match = tail_overlap(active_tail, candidate_tail(candidate));
                     const long double context_gate = 0.40L + 0.90L * lexical_match;
-                    const auto bridged = apply_bridge(fp, candidate_transition(candidate));
-                    const long double bridge_fit = complex_similarity(bridged, candidate_query(candidate));
+                    const long double bridge_fit =
+                        projected_bridge_similarity(fp, candidate_transition(candidate), candidate_query(candidate));
                     const long double negative_spectral = complex_similarity(fp, candidate_negative_key(candidate));
                     const long double negative_padic =
                         0.5L + 0.5L * cosine(current_padic, candidate_negative_padic(candidate));
@@ -271,9 +303,9 @@ public:
                     cx cross = 0;
                     long double n1 = 0, n2 = 0;
                     for (std::size_t j = 0; j < dim_; ++j) {
-                        cross += std::conj(q[j]) * qu[j];
-                        n1 += std::abs(q[j]) * std::abs(q[j]);
-                        n2 += std::abs(qu[j]) * std::abs(qu[j]);
+                        cross += conjugate_multiply(q[j], qu[j]);
+                        n1 += complex_norm(q[j]);
+                        n2 += complex_norm(qu[j]);
                     }
                     long double sim = std::abs(cross) / (std::sqrt(n1 * n2) + 1e-30L);
                     score -= 0.3L * sim * candidate.score;  // inhibition by similarity
@@ -335,6 +367,17 @@ public:
         learning_rate_ = std::clamp(rate, 1.0e-4L, 1.0L);
     }
 
+    void set_thread_count(std::size_t count) noexcept {
+        const auto fallback = std::max<std::size_t>(1, std::thread::hardware_concurrency());
+        thread_count_ = count == 0 ? fallback : std::clamp<std::size_t>(count, 1, 1024);
+    }
+
+    std::size_t thread_count() const noexcept { return thread_count_; }
+
+    void set_parallel_min_dimensions(std::size_t dimensions) noexcept {
+        parallel_min_dimensions_ = std::max<std::size_t>(1, dimensions);
+    }
+
 private:
     struct ContextPrototype {
         std::vector<cx> key;
@@ -379,6 +422,18 @@ private:
                 {}};
     }
 
+    void initialize_seed_projection(std::size_t count) {
+        seed_primes_ = generate_first_primes(std::max<std::size_t>(1, count));
+        seed_theta_.resize(seed_primes_.size());
+        seed_energy_.resize(seed_primes_.size());
+        seed_padic_log_.resize(seed_primes_.size());
+        for (std::size_t i = 0; i < seed_primes_.size(); ++i) {
+            seed_theta_[i] = riemann_siegel_theta(seed_primes_[i]);
+            seed_energy_[i] = spectral_energy(seed_primes_[i], 32);
+            seed_padic_log_[i] = std::log1p(static_cast<long double>(seed_primes_[i] % 997U));
+        }
+    }
+
     void push_context_token(std::vector<std::string>& context_tokens,
                             const std::string& token) const {
         context_tokens.push_back(token);
@@ -407,10 +462,154 @@ private:
                (now * 0x9e3779b97f4a7c15ULL);
     }
 
+    static std::size_t env_size_or(const char* name, std::size_t fallback) noexcept {
+        const char* value = std::getenv(name);
+        if (value == nullptr || *value == '\0') {
+            return fallback;
+        }
+        char* end = nullptr;
+        const auto parsed = std::strtoull(value, &end, 10);
+        if (end == value || parsed == 0ULL) {
+            return fallback;
+        }
+        return static_cast<std::size_t>(std::min<unsigned long long>(parsed, 1024ULL));
+    }
+
+    static std::size_t default_thread_count() noexcept {
+        const auto hardware = std::max<std::size_t>(1, std::thread::hardware_concurrency());
+        return env_size_or("DZETA_THREADS", hardware);
+    }
+
+    static std::size_t default_parallel_min_dimensions() noexcept {
+        return env_size_or("DZETA_PARALLEL_MIN_DIM", 2048);
+    }
+
+    std::size_t effective_thread_count(std::size_t work_items) const noexcept {
+        if (thread_count_ <= 1 || work_items < parallel_min_dimensions_ || work_items <= 1) {
+            return 1;
+        }
+        return std::min(thread_count_, work_items);
+    }
+
+    template <typename Fn>
+    void parallel_for_ranges(std::size_t work_items, Fn&& fn) const {
+        const std::size_t workers = effective_thread_count(work_items);
+        if (workers <= 1) {
+            fn(0, work_items);
+            return;
+        }
+
+        std::vector<std::thread> threads;
+        threads.reserve(workers - 1U);
+        const std::size_t block = (work_items + workers - 1U) / workers;
+        std::size_t begin = 0;
+        for (std::size_t worker = 0; worker < workers; ++worker) {
+            const std::size_t end = std::min(work_items, begin + block);
+            if (begin >= end) {
+                break;
+            }
+            if (worker + 1U == workers || end == work_items) {
+                fn(begin, end);
+            } else {
+                threads.emplace_back([&, begin, end]() {
+                    fn(begin, end);
+                });
+            }
+            begin = end;
+        }
+        for (auto& thread : threads) {
+            thread.join();
+        }
+    }
+
+    static long double complex_norm(cx value) noexcept {
+        const long double re = value.real();
+        const long double im = value.imag();
+        return re * re + im * im;
+    }
+
+    static cx conjugate_multiply(cx left, cx right) noexcept {
+        const long double lr = left.real();
+        const long double li = left.imag();
+        const long double rr = right.real();
+        const long double ri = right.imag();
+        return {lr * rr + li * ri, lr * ri - li * rr};
+    }
+
+    static void sincos_ld(long double value, long double& sin_value, long double& cos_value) noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+        __builtin_sincosl(value, &sin_value, &cos_value);
+#else
+        sin_value = std::sin(value);
+        cos_value = std::cos(value);
+#endif
+    }
+
+    std::pair<std::vector<cx>, std::vector<long double>> seed_weyl_transform(std::string_view impulse) const {
+        std::vector<cx> ampl(dim_, cx(0, 0));
+        std::vector<long double> padic(dim_, 0.0L);
+        if (seed_primes_.empty()) {
+            return {ampl, padic};
+        }
+
+        const auto signature = field_impulse_signature(impulse, seed_primes_.size());
+        long double padic_base = 0.0L;
+        for (std::size_t i = 0; i < seed_primes_.size(); ++i) {
+            const long double charge = signature[i];
+            const long double act = std::clamp(0.45L + 0.35L * std::abs(charge), 0.0L, 1.0L);
+            const long double en = seed_energy_[i];
+            const long double padic_coordinate = seed_padic_log_[i] * (1.0L + charge);
+            padic_base += act * en * padic_norm(padic_coordinate, seed_primes_[i % seed_primes_.size()] % 997U + 2U);
+        }
+        if (std::abs(padic_base) > 1.0e-30L) {
+            std::fill(padic.begin(), padic.end(), padic_base);
+        }
+
+        parallel_for_ranges(dim_, [&](std::size_t begin, std::size_t end) {
+            for (std::size_t z = begin; z < end; ++z) {
+                long double sum_re = 0.0L;
+                long double sum_im = 0.0L;
+                const long double zr = zeta_basis_[z];
+                const long double z_scale = (static_cast<long double>(z) + 1.0L) * 12.9898L;
+                for (std::size_t i = 0; i < seed_primes_.size(); ++i) {
+                    const long double charge = signature[i];
+                    const long double act = std::clamp(0.45L + 0.35L * std::abs(charge), 0.0L, 1.0L);
+                    const long double en = seed_energy_[i];
+                    const long double theta = seed_theta_[i];
+                    const long double phase_dither =
+                        0.03L * std::sin(charge * z_scale +
+                                          static_cast<long double>(seed_primes_[i]) * 0.0174533L);
+                    const long double phase = theta * zr + charge * 0.5L + phase_dither;
+                    const long double weight = act * en;
+                    long double sin_phase = 0.0L;
+                    long double cos_phase = 1.0L;
+                    sincos_ld(phase, sin_phase, cos_phase);
+                    sum_re += weight * cos_phase;
+                    sum_im += weight * sin_phase;
+                }
+                ampl[z] = cx(sum_re, sum_im);
+            }
+        });
+
+        long double an = 0.0L;
+        for (auto value : ampl) an += complex_norm(value);
+        if (an > 1.0e-30L) {
+            an = std::sqrt(an);
+            for (auto& value : ampl) value /= an;
+        }
+        long double pn = 0.0L;
+        for (auto value : padic) pn += value * value;
+        if (pn > 1.0e-30L) {
+            pn = std::sqrt(pn);
+            for (auto& value : padic) value /= pn;
+        }
+        return {std::move(ampl), std::move(padic)};
+    }
+
     static void normalize_complex(std::vector<cx>& values) {
         long double norm = 0.0L;
         for (auto value : values) {
-            norm += std::norm(value);
+            norm += complex_norm(value);
         }
         if (norm <= 1.0e-30L) {
             return;
@@ -428,7 +627,7 @@ private:
         }
         long double loss = 0.0L;
         for (std::size_t i = 0; i < count; ++i) {
-            loss += std::norm(left[i] - right[i]);
+            loss += complex_norm(left[i] - right[i]);
         }
         return loss / static_cast<long double>(count);
     }
@@ -442,9 +641,9 @@ private:
         long double left_norm = 0.0L;
         long double right_norm = 0.0L;
         for (std::size_t i = 0; i < count; ++i) {
-            dot += std::conj(left[i]) * right[i];
-            left_norm += std::norm(left[i]);
-            right_norm += std::norm(right[i]);
+            dot += conjugate_multiply(left[i], right[i]);
+            left_norm += complex_norm(left[i]);
+            right_norm += complex_norm(right[i]);
         }
         if (left_norm <= 1.0e-30L || right_norm <= 1.0e-30L) {
             return 0.0L;
@@ -471,6 +670,28 @@ private:
         }
         normalize_complex(projected);
         return projected;
+    }
+
+    static long double projected_bridge_similarity(const std::vector<cx>& state,
+                                                   const std::vector<cx>& bridge,
+                                                   const std::vector<cx>& target) {
+        const std::size_t count = std::min({state.size(), bridge.size(), target.size()});
+        if (count == 0) {
+            return 0.0L;
+        }
+        cx dot = 0;
+        long double projected_norm = 0.0L;
+        long double target_norm = 0.0L;
+        for (std::size_t i = 0; i < count; ++i) {
+            const cx projected = state[i] * bridge[i];
+            dot += conjugate_multiply(projected, target[i]);
+            projected_norm += complex_norm(projected);
+            target_norm += complex_norm(target[i]);
+        }
+        if (projected_norm <= 1.0e-30L || target_norm <= 1.0e-30L) {
+            return 0.0L;
+        }
+        return std::clamp(std::abs(dot) / std::sqrt(projected_norm * target_norm), 0.0L, 1.0L);
     }
 
     static void mix_negative_key(std::vector<cx>& negative_key,
@@ -502,7 +723,7 @@ private:
         }
         cx projection = 0;
         for (std::size_t i = 0; i < count; ++i) {
-            projection += std::conj(away[i]) * vector[i];
+            projection += conjugate_multiply(away[i], vector[i]);
         }
         for (std::size_t i = 0; i < count; ++i) {
             vector[i] -= rate * projection * away[i];
@@ -754,24 +975,42 @@ private:
         std::vector<cx> ampl(dim_, cx(0, 0));
         std::vector<long double> padic(dim_, 0.0L);
         if (f.empty()) return {ampl, padic};
-        for (std::size_t i = 0; i < std::min<std::size_t>(f.size(), 256); ++i) {
-            long double act = f.activations[i];
-            long double en = f.energy[i];
-            long double theta = f.theta[i];
-            long double charge = f.semantic_charge[i];
-            for (std::size_t z = 0; z < dim_; ++z) {
-                long double zr = zeta_zero((z * steps_[z]) % zeta_zero_count());
-                long double phase_dither =
-                    0.03L * std::sin(charge * (static_cast<long double>(z) + 1.0L) * 12.9898L +
-                                      static_cast<long double>(f.primes[i]) * 0.0174533L);
-                long double re = std::cos(theta * zr + charge * 0.5L + phase_dither);
-                long double im = std::sin(theta * zr + charge * 0.5L + phase_dither);
-                ampl[z] += cx(act * en * re, act * en * im);
-                padic[z] += act * en * padic_norm(f.padic_coordinates[i], f.primes[i % f.size()] % 997U + 2U);
-            }
+        const std::size_t field_items = std::min<std::size_t>(f.size(), 256);
+        long double padic_base = 0.0L;
+        for (std::size_t i = 0; i < field_items; ++i) {
+            const long double act = f.activations[i];
+            const long double en = f.energy[i];
+            padic_base += act * en * padic_norm(f.padic_coordinates[i], f.primes[i % f.size()] % 997U + 2U);
         }
+        if (std::abs(padic_base) > 1.0e-30L) {
+            std::fill(padic.begin(), padic.end(), padic_base);
+        }
+
+        parallel_for_ranges(dim_, [&](std::size_t begin, std::size_t end) {
+            for (std::size_t z = begin; z < end; ++z) {
+                long double sum_re = 0.0L;
+                long double sum_im = 0.0L;
+                const long double zr = zeta_basis_[z];
+                for (std::size_t i = 0; i < field_items; ++i) {
+                    const long double act = f.activations[i];
+                    const long double en = f.energy[i];
+                    const long double theta = f.theta[i];
+                    const long double charge = f.semantic_charge[i];
+                    const long double phase_dither =
+                        0.03L * std::sin(charge * (static_cast<long double>(z) + 1.0L) * 12.9898L +
+                                          static_cast<long double>(f.primes[i]) * 0.0174533L);
+                    long double im = 0.0L;
+                    long double re = 1.0L;
+                    sincos_ld(theta * zr + charge * 0.5L + phase_dither, im, re);
+                    const long double weight = act * en;
+                    sum_re += weight * re;
+                    sum_im += weight * im;
+                }
+                ampl[z] = cx(sum_re, sum_im);
+            }
+        });
         long double an = 0;
-        for (auto v : ampl) an += std::abs(v) * std::abs(v);
+        for (auto v : ampl) an += complex_norm(v);
         if (an > 1e-30L) { an = std::sqrt(an); for (auto& v : ampl) v /= an; }
         long double pn = 0;
         for (auto v : padic) pn += v * v;
@@ -805,7 +1044,14 @@ private:
     std::vector<cx> fp_cx_;
     std::size_t max_osc_;
     std::size_t dim_;
+    std::size_t thread_count_;
+    std::size_t parallel_min_dimensions_;
     std::vector<std::size_t> steps_;
+    std::vector<long double> zeta_basis_;
+    std::vector<std::uint32_t> seed_primes_;
+    std::vector<long double> seed_theta_;
+    std::vector<long double> seed_energy_;
+    std::vector<long double> seed_padic_log_;
     mutable std::mt19937_64 rng_;
     long double learning_rate_ = 0.32L;
     long double generation_temperature_ = 0.08L;
