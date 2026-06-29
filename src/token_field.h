@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cfenv>
 #include <chrono>
 #include <cmath>
@@ -330,8 +331,15 @@ public:
             if (fn > 1e-30L) for (auto& v : fp) v /= fn;
         };
         normalize();
+        inject_prompt_resonance(text, fp, current_padic);
+        normalize();
         const std::vector<cx> prompt_trace = fp;
         const std::vector<long double> prompt_padic_trace = current_padic;
+        std::vector<cx> attractor_center;
+        std::vector<long double> attractor_padic_center;
+        if (dimension_interference_ > 0.0L) {
+            build_attractor_center(attractor_center, attractor_padic_center);
+        }
         std::vector<std::uint64_t> active_tail = lexical_tail(text);
         const auto push_active_token = [&](const std::string& token) {
             active_tail.push_back(stable_hash(token));
@@ -431,11 +439,38 @@ public:
                     const long double padic_match = 0.5L + 0.5L * cosine(current_padic, candidate_padic(candidate));
                     const long double observations =
                         static_cast<long double>(std::max<std::size_t>(1, oscs_[i].observations));
-                    const long double frequency_penalty = 1.0L / std::sqrt(1.0L + 0.03L * observations);
+                    const long double frequency_pressure =
+                        0.03L + (dimension_interference_ > 0.0L ? 0.75L * dimension_interference_ : 0.0L);
+                    const long double frequency_penalty = 1.0L / std::sqrt(1.0L + frequency_pressure * observations);
                     const long double content_gain =
                         std::clamp(static_cast<long double>(oscs_[i].token.size()) / 7.0L, 0.55L, 1.35L);
                     const long double lexical_match = tail_overlap(active_tail, candidate_tail(candidate));
-                    const long double context_gate = 0.40L + 0.90L * lexical_match;
+                    const long double prompt_fit =
+                        dimension_interference_ > 0.0L ? normalized_complex_similarity(prompt_trace, key) : 0.0L;
+                    const long double prompt_padic_fit =
+                        dimension_interference_ > 0.0L
+                            ? 0.5L + 0.5L * normalized_cosine(prompt_padic_trace, candidate_padic(candidate))
+                            : 0.0L;
+                    const long double attractor_fit =
+                        dimension_interference_ > 0.0L && !attractor_center.empty()
+                            ? normalized_complex_similarity(attractor_center, key)
+                            : 0.0L;
+                    const long double attractor_padic_fit =
+                        dimension_interference_ > 0.0L && !attractor_padic_center.empty()
+                            ? 0.5L + 0.5L * normalized_cosine(attractor_padic_center, candidate_padic(candidate))
+                            : 0.0L;
+                    const long double prompt_specificity =
+                        std::max<long double>(0.0L,
+                                              0.72L * prompt_fit + 0.28L * prompt_padic_fit -
+                                                  0.62L * attractor_fit - 0.18L * attractor_padic_fit);
+                    const long double attractor_pressure =
+                        std::clamp(0.72L * attractor_fit + 0.28L * attractor_padic_fit, 0.0L, 1.0L);
+                    const long double context_gate =
+                        dimension_interference_ > 0.0L
+                            ? std::clamp(0.10L + 1.50L * lexical_match + 1.15L * prompt_specificity,
+                                         0.05L,
+                                         2.10L)
+                            : 0.40L + 0.90L * lexical_match;
                     const long double bridge_fit =
                         projected_bridge_similarity(fp, candidate_transition(candidate), candidate_query(candidate));
                     const long double negative_spectral = complex_similarity(fp, candidate_negative_key(candidate));
@@ -447,9 +482,22 @@ public:
                         std::clamp(1.0L - contrastive_strength_ * collision, 0.12L, 1.0L);
                     const long double reliability =
                         oscs_[i].strength * frequency_penalty * content_gain / (1.0L + oscs_[i].error_ema);
+                    const long double route_gain =
+                        dimension_interference_ > 0.0L
+                            ? std::clamp(0.25L + 26.0L * dimension_interference_ * prompt_specificity,
+                                         0.08L,
+                                         4.60L)
+                            : 1.0L;
+                    const long double anti_template =
+                        dimension_interference_ > 0.0L
+                            ? std::clamp(1.18L - (0.85L + 1.80L * dimension_interference_) * attractor_pressure,
+                                         0.05L,
+                                         1.18L)
+                            : 1.0L;
                     long double score =
                         std::abs(dm) * (0.70L + 0.30L * padic_match) *
-                        (0.75L + 0.25L * bridge_fit) * reliability * context_gate * contrastive_penalty;
+                        (0.75L + 0.25L * bridge_fit) * reliability * context_gate *
+                        contrastive_penalty * route_gain * anti_template;
                     if (score > 1e-12L) {
                         raw.push_back({score, i, candidate.prototype});
                     }
@@ -625,6 +673,12 @@ public:
         random_init_scale_ = std::clamp(scale, 0.0L, 0.25L);
     }
 
+    void set_dimension_interference(long double strength) noexcept {
+        dimension_interference_ = std::clamp(strength, 0.0L, 0.25L);
+    }
+
+    long double dimension_interference() const noexcept { return dimension_interference_; }
+
     void set_thread_count(std::size_t count) noexcept {
         const auto fallback = std::max<std::size_t>(1, std::thread::hardware_concurrency());
         thread_count_ = count == 0 ? fallback : std::clamp<std::size_t>(count, 1, 1024);
@@ -689,7 +743,7 @@ private:
     };
 
     static constexpr std::string_view model_magic() noexcept { return "DZETA_OSC_FIELD"; }
-    static constexpr std::uint32_t model_version() noexcept { return 1U; }
+    static constexpr std::uint32_t model_version() noexcept { return 2U; }
     static constexpr std::size_t max_serialized_string_bytes = 64U * 1024U * 1024U;
     static constexpr std::size_t max_serialized_vector_items = 16U * 1024U * 1024U;
 
@@ -899,6 +953,7 @@ private:
         write_pod(output, update_probability_);
         write_pod(output, update_noise_);
         write_pod(output, random_init_scale_);
+        write_pod(output, dimension_interference_);
         write_count(output, max_prototypes_per_token_);
         write_count(output, max_hard_negatives_);
         write_count(output, max_context_tokens_);
@@ -926,7 +981,7 @@ private:
         if (magic != model_magic()) {
             throw std::runtime_error("not a dzeta oscillator model");
         }
-        if (version != model_version()) {
+        if (version == 0 || version > model_version()) {
             throw std::runtime_error("unsupported dzeta oscillator model version");
         }
 
@@ -943,6 +998,11 @@ private:
         read_pod(input, update_probability_);
         read_pod(input, update_noise_);
         read_pod(input, random_init_scale_);
+        if (version >= 2U) {
+            read_pod(input, dimension_interference_);
+        } else {
+            dimension_interference_ = 0.0L;
+        }
         max_prototypes_per_token_ = std::max<std::size_t>(1, read_count(input, "max_prototypes_per_token"));
         max_hard_negatives_ = std::max<std::size_t>(1, read_count(input, "max_hard_negatives"));
         max_context_tokens_ = std::max<std::size_t>(1, read_count(input, "max_context_tokens"));
@@ -1237,6 +1297,7 @@ private:
             an = std::sqrt(an);
             for (auto& value : ampl) value /= an;
         }
+        apply_dimensional_interference(impulse, signature, ampl);
         long double pn = 0.0L;
         for (auto value : padic) pn += value * value;
         if (pn > 1.0e-30L) {
@@ -1250,6 +1311,145 @@ private:
         std::vector<long double> padic;
         seed_weyl_transform_into(impulse, ampl, padic);
         return {std::move(ampl), std::move(padic)};
+    }
+
+    void apply_dimensional_interference(std::string_view impulse,
+                                        const std::vector<long double>& signature,
+                                        std::vector<cx>& ampl) const {
+        if (dimension_interference_ <= 0.0L || ampl.size() < 8 || signature.empty()) {
+            return;
+        }
+
+        const std::vector<cx> source = ampl;
+        const std::size_t count = source.size();
+        std::uint64_t state =
+            stable_hash(impulse) ^ (static_cast<std::uint64_t>(count) * 0x9e3779b97f4a7c15ULL);
+        auto next_shift = [&]() {
+            return static_cast<std::size_t>(1U + (splitmix64(state) % (count - 1U)));
+        };
+        const std::size_t shift_a = next_shift();
+        const std::size_t shift_b = next_shift();
+        const std::size_t shift_c = next_shift();
+        std::size_t stride = next_shift();
+        if ((stride & 1U) == 0U) {
+            ++stride;
+        }
+        if (stride >= count) {
+            stride = 1U;
+        }
+
+        const long double dim_gain =
+            std::sqrt(std::log2(static_cast<long double>(count) + 2.0L) / std::log2(194.0L));
+        const long double strength = std::min<long double>(0.65L, dimension_interference_ * dim_gain);
+        const long double fold_scale = std::sqrt(static_cast<long double>(count));
+
+        for (std::size_t z = 0; z < count; ++z) {
+            const std::size_t ia = (z + shift_a) % count;
+            const std::size_t ib = (z * stride + shift_b) % count;
+            const std::size_t ic = (z + shift_c) % count;
+            const long double charge = signature[z % signature.size()];
+            const long double gate = 0.55L + 0.45L * std::abs(charge);
+            const cx phase_gate(1.0L + 0.15L * charge, 0.35L * charge);
+            const cx folded =
+                fold_scale * (source[ia] * std::conj(source[ib]) + 0.5L * source[z] * std::conj(source[ic]));
+            ampl[z] = source[z] + strength * gate * phase_gate * folded;
+        }
+        normalize_complex(ampl);
+    }
+
+    const TokenOscillator* find_prompt_oscillator(std::string token) const {
+        auto found = token_index_.find(token);
+        if (found != token_index_.end()) {
+            return &oscs_[found->second];
+        }
+        if (!token.empty()) {
+            token[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(token[0])));
+            found = token_index_.find(token);
+            if (found != token_index_.end()) {
+                return &oscs_[found->second];
+            }
+        }
+        return nullptr;
+    }
+
+    void build_attractor_center(std::vector<cx>& center, std::vector<long double>& padic_center) const {
+        center.assign(dim_, cx(0, 0));
+        padic_center.assign(dim_, 0.0L);
+        long double total_weight = 0.0L;
+        for (const auto& oscillator : oscs_) {
+            if (oscillator.observations == 0 || oscillator.token.size() <= 1 ||
+                is_subword_continuation(oscillator.token)) {
+                continue;
+            }
+            const long double observations = static_cast<long double>(oscillator.observations);
+            const long double weight =
+                std::sqrt(observations) * std::clamp(oscillator.strength / 4.0L, 0.10L, 2.00L);
+            if (weight <= 1.0e-18L) {
+                continue;
+            }
+            for (std::size_t j = 0; j < dim_; ++j) {
+                center[j] += weight * (0.55L * oscillator.key[j] + 0.45L * oscillator.query[j]);
+                padic_center[j] +=
+                    weight * (0.55L * oscillator.padic_signature[j] + 0.45L * oscillator.query_padic_signature[j]);
+            }
+            total_weight += weight;
+        }
+        if (total_weight <= 1.0e-18L) {
+            center.clear();
+            padic_center.clear();
+            return;
+        }
+        const long double inv_weight = 1.0L / total_weight;
+        for (auto& value : center) {
+            value *= inv_weight;
+        }
+        for (auto& value : padic_center) {
+            value *= inv_weight;
+        }
+        normalize_complex(center);
+        normalize_real(padic_center);
+    }
+
+    void inject_prompt_resonance(std::string_view text,
+                                 std::vector<cx>& state,
+                                 std::vector<long double>& padic) const {
+        if (dimension_interference_ <= 0.0L || state.size() != dim_) {
+            return;
+        }
+        const auto tokens = tokenize_query(text);
+        if (tokens.empty()) {
+            return;
+        }
+        std::vector<const TokenOscillator*> anchors;
+        anchors.reserve(tokens.size());
+        for (const auto& token : tokens) {
+            if (token.size() <= 1) {
+                continue;
+            }
+            if (const auto* oscillator = find_prompt_oscillator(token)) {
+                anchors.push_back(oscillator);
+            }
+        }
+        if (anchors.empty()) {
+            return;
+        }
+
+        const long double base_weight =
+            std::min<long double>(0.58L, dimension_interference_ * 1.85L) /
+            std::sqrt(static_cast<long double>(anchors.size()));
+        for (std::size_t a = 0; a < anchors.size(); ++a) {
+            const auto& oscillator = *anchors[a];
+            const long double recency =
+                1.0L + static_cast<long double>(a) / static_cast<long double>(anchors.size());
+            const long double weight = std::min<long double>(0.62L, base_weight * recency);
+            for (std::size_t j = 0; j < dim_; ++j) {
+                const cx anchor = 0.35L * oscillator.key[j] + 0.65L * oscillator.query[j];
+                state[j] = (1.0L - weight) * state[j] + weight * anchor;
+                padic[j] = (1.0L - weight) * padic[j] + weight * oscillator.query_padic_signature[j];
+            }
+            normalize_complex(state);
+            normalize_real(padic);
+        }
     }
 
     static void normalize_complex(std::vector<cx>& values) {
@@ -1784,6 +1984,7 @@ private:
     long double update_probability_ = 1.0L;
     long double update_noise_ = 0.0L;
     long double random_init_scale_ = 0.0L;
+    long double dimension_interference_ = 0.0L;
     std::size_t max_prototypes_per_token_ = 4;
     std::size_t max_hard_negatives_ = 4;
     std::size_t max_context_tokens_ = 24;

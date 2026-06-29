@@ -32,6 +32,8 @@ struct Options {
     long double update_probability = 1.0L;
     long double update_noise = 0.0L;
     long double random_init_scale = 0.0L;
+    long double dimension_interference = 0.0L;
+    bool dimension_interference_set = false;
     std::size_t threads = 0;
     std::size_t parallel_min_dimensions = 2048;
     bool shuffle_lines = false;
@@ -49,6 +51,7 @@ void print_usage() {
         << "                         [--threads N] [--parallel-min-dim N]\n"
         << "                         [--shuffle-lines] [--update-probability X]\n"
         << "                         [--update-noise X] [--random-init-scale X]\n"
+        << "                         [--dim-interference X]\n"
         << "                         [--save-model PATH] [--load-model PATH]\n"
         << "                         [--autosave-seconds N]\n";
 }
@@ -113,6 +116,9 @@ Options parse_options(int argc, char** argv) {
             options.update_noise = parse_float(require_value(arg));
         } else if (arg == "--random-init-scale") {
             options.random_init_scale = parse_float(require_value(arg));
+        } else if (arg == "--dim-interference") {
+            options.dimension_interference = parse_float(require_value(arg));
+            options.dimension_interference_set = true;
         } else if (arg == "--threads") {
             options.threads = parse_size(require_value(arg));
         } else if (arg == "--parallel-min-dim") {
@@ -212,6 +218,9 @@ int main(int argc, char** argv) {
         field.set_update_probability(options.update_probability);
         field.set_update_noise(options.update_noise);
         field.set_random_init_scale(options.random_init_scale);
+        if (options.dimension_interference_set || options.load_model_path.empty()) {
+            field.set_dimension_interference(options.dimension_interference);
+        }
         field.set_thread_count(options.threads);
         field.set_parallel_min_dimensions(options.parallel_min_dimensions);
         std::mt19937_64 shuffle_rng(options.seed == 0 ? entropy64() : options.seed);
@@ -239,6 +248,7 @@ int main(int argc, char** argv) {
         std::cout << "update_probability=" << static_cast<double>(options.update_probability) << "\n";
         std::cout << "update_noise=" << static_cast<double>(options.update_noise) << "\n";
         std::cout << "random_init_scale=" << static_cast<double>(options.random_init_scale) << "\n";
+        std::cout << "dim_interference=" << static_cast<double>(field.dimension_interference()) << "\n";
         std::cout << "shuffle_lines=" << (options.shuffle_lines ? "true" : "false") << "\n";
         if (!options.load_model_path.empty()) {
             std::cout << "load_model_path=" << options.load_model_path.string() << "\n";

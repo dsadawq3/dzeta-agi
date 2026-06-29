@@ -8,6 +8,7 @@
 int main() {
     dzeta::OscillatorField field(4096, 128, 12345);
     field.set_generation_temperature(0.0L);
+    field.set_dimension_interference(0.02L);
     field.set_thread_count(2);
     field.set_parallel_min_dimensions(1);
 
@@ -33,6 +34,7 @@ int main() {
 
     assert(loaded.size() == before_size);
     assert(loaded.observation_count() == before_observations);
+    assert(loaded.dimension_interference() > 0.019L);
     assert(loaded.forward("red apple", 6) == before);
 
     std::filesystem::remove(path);
