@@ -286,6 +286,7 @@ public:
             for (std::size_t i = 0; i < oscs_.size(); ++i) {
                 if (used.find(oscs_[i].token) != used.end()) continue;
                 if (oscs_[i].token.size() <= 1) continue;
+                if (is_subword_continuation(oscs_[i].token)) continue;
                 const std::size_t prototypes = std::max<std::size_t>(1, oscs_[i].prototypes.size());
                 for (std::size_t p = 0; p < prototypes; ++p) {
                     const Candidate candidate{0.0L, i, oscs_[i].prototypes.empty() ? no_prototype : p};
@@ -359,8 +360,11 @@ public:
             std::partial_sort(inhibited.begin(), inhibited.begin() + 1, inhibited.end(), by_score);
             const Candidate best = inhibited[0];
             std::size_t best_i = best.oscillator;
-            if (!out.empty()) out += ' ';
-            out += oscs_[best_i].token;
+            if (!is_subword_continuation(oscs_[best_i].token)) {
+                const auto surface = subword_surface(oscs_[best_i].token);
+                if (!out.empty()) out += ' ';
+                out += surface;
+            }
             used.insert(oscs_[best_i].token);
             push_active_token(oscs_[best_i].token);
             const auto bridged = apply_bridge(fp, candidate_transition(best));

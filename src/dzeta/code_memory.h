@@ -26,6 +26,130 @@ inline bool is_identifier_body(unsigned char ch) {
     return std::isalnum(ch) != 0 || ch == '_';
 }
 
+inline bool is_subword_continuation(std::string_view token) {
+    return token.size() > 2 && token[0] == '#' && token[1] == '#';
+}
+
+inline std::string_view subword_surface(std::string_view token) {
+    return is_subword_continuation(token) ? token.substr(2) : token;
+}
+
+inline bool is_ascii_alpha_word(std::string_view token) {
+    return !token.empty() && std::all_of(token.begin(), token.end(), [](char ch) {
+        return std::isalpha(static_cast<unsigned char>(ch)) != 0;
+    });
+}
+
+inline bool is_ascii_vowel(char ch) {
+    switch (static_cast<char>(std::tolower(static_cast<unsigned char>(ch)))) {
+        case 'a':
+        case 'e':
+        case 'i':
+        case 'o':
+        case 'u':
+        case 'y':
+            return true;
+        default:
+            return false;
+    }
+}
+
+inline bool has_vowel(std::string_view token) {
+    return std::any_of(token.begin(), token.end(), [](char ch) {
+        return is_ascii_vowel(ch);
+    });
+}
+
+inline int char_resonance_class(char ch) {
+    const unsigned char uch = static_cast<unsigned char>(ch);
+    if (std::isdigit(uch) != 0) {
+        return 0;
+    }
+    if (std::isalpha(uch) == 0) {
+        return -2;
+    }
+    return is_ascii_vowel(ch) ? 1 : -1;
+}
+
+inline long double subword_boundary_score(std::string_view word, std::size_t boundary) {
+    const std::size_t left_len = boundary;
+    const std::size_t right_len = word.size() - boundary;
+    if (left_len < 2 || right_len < 2) {
+        return -100.0L;
+    }
+
+    const auto left = word.substr(0, left_len);
+    const auto right = word.substr(boundary);
+    long double score = 0.0L;
+
+    if (has_vowel(left) && has_vowel(right)) {
+        score += 1.60L;
+    }
+
+    const int before = char_resonance_class(word[boundary - 1U]);
+    const int after = char_resonance_class(word[boundary]);
+    if (before != after) {
+        score += 1.25L;
+    }
+    if (before < 0 && after > 0) {
+        score += 0.65L;
+    }
+
+    const long double balance =
+        1.0L - (std::abs(static_cast<long double>(left_len) - static_cast<long double>(right_len)) /
+                static_cast<long double>(word.size()));
+    score += 0.85L * balance;
+
+    if (right_len >= 2 && right_len <= 4 && has_vowel(right)) {
+        score += 0.45L;
+    }
+    if (left_len >= 3 && left_len <= 6) {
+        score += 0.25L;
+    }
+    if (std::tolower(static_cast<unsigned char>(word[boundary - 1U])) ==
+        std::tolower(static_cast<unsigned char>(word[boundary]))) {
+        score -= 0.40L;
+    }
+    return score;
+}
+
+inline void split_word_resonance_impl(std::string_view word,
+                                      std::vector<std::string>& pieces,
+                                      std::size_t depth) {
+    if (word.size() < 5 || depth >= 3 || !is_ascii_alpha_word(word)) {
+        pieces.emplace_back(word);
+        return;
+    }
+
+    std::size_t best_boundary = 0;
+    long double best_score = -100.0L;
+    for (std::size_t boundary = 2; boundary + 2 <= word.size(); ++boundary) {
+        const long double score = subword_boundary_score(word, boundary);
+        if (score > best_score) {
+            best_score = score;
+            best_boundary = boundary;
+        }
+    }
+
+    const long double threshold = word.size() >= 8 ? 3.0L : 3.35L;
+    if (best_boundary == 0 || best_score < threshold) {
+        pieces.emplace_back(word);
+        return;
+    }
+
+    split_word_resonance_impl(word.substr(0, best_boundary), pieces, depth + 1U);
+    split_word_resonance_impl(word.substr(best_boundary), pieces, depth + 1U);
+}
+
+inline std::vector<std::string> split_word_resonance(std::string_view word) {
+    std::vector<std::string> pieces;
+    split_word_resonance_impl(word, pieces, 0);
+    if (pieces.empty()) {
+        pieces.emplace_back(word);
+    }
+    return pieces;
+}
+
 inline std::vector<std::string> tokenize_code(std::string_view text, std::size_t max_tokens = 0) {
     std::vector<std::string> tokens;
     std::size_t i = 0;
@@ -52,7 +176,15 @@ inline std::vector<std::string> tokenize_code(std::string_view text, std::size_t
             while (i < text.size() && is_identifier_body(static_cast<unsigned char>(text[i]))) {
                 ++i;
             }
-            tokens.emplace_back(text.substr(begin, i - begin));
+            const auto word = text.substr(begin, i - begin);
+            const auto pieces = split_word_resonance(word);
+            tokens.emplace_back(word);
+            for (std::size_t piece = 0; piece < pieces.size(); ++piece) {
+                if (max_tokens != 0 && tokens.size() >= max_tokens) {
+                    break;
+                }
+                tokens.push_back("##" + pieces[piece]);
+            }
             continue;
         }
         if (std::isdigit(ch) != 0) {
@@ -320,6 +452,10 @@ inline std::string format_code_tokens(const std::vector<std::string>& tokens) {
     };
 
     for (const auto& token : tokens) {
+        if (is_subword_continuation(token)) {
+            previous = token;
+            continue;
+        }
         if (token == "\n") {
             out << '\n';
             at_line_start = true;

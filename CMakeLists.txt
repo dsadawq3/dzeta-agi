@@ -44,6 +44,10 @@ add_executable(dzeta_stochastic tests/stochastic.cpp)
 target_link_libraries(dzeta_stochastic PRIVATE dzeta_core)
 add_test(NAME dzeta_stochastic COMMAND dzeta_stochastic)
 
+add_executable(dzeta_tokenizer tests/tokenizer.cpp)
+target_link_libraries(dzeta_tokenizer PRIVATE dzeta_core)
+add_test(NAME dzeta_tokenizer COMMAND dzeta_tokenizer)
+
 add_executable(dzeta_train_smoke benchmarks/train_smoke.cpp)
 target_link_libraries(dzeta_train_smoke PRIVATE dzeta_core)
 
