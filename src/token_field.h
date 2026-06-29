@@ -6,6 +6,7 @@
 #include "zeta_zeros.h"
 
 #include <algorithm>
+#include <array>
 #include <cfenv>
 #include <chrono>
 #include <cmath>
@@ -15,8 +16,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <functional>
 #include <istream>
 #include <limits>
+#include <memory>
+#include <mutex>
 #include <numeric>
 #include <ostream>
 #include <random>
@@ -25,9 +29,11 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <condition_variable>
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
@@ -66,6 +72,125 @@ public:
         long double padic_similarity = 0.0L;
     };
 
+    class RangeThreadPool {
+    public:
+        explicit RangeThreadPool(std::size_t max_workers)
+            : max_workers_(std::max<std::size_t>(1, max_workers)) {
+            threads_.reserve(max_workers_ > 0 ? max_workers_ - 1U : 0U);
+            for (std::size_t i = 0; i + 1U < max_workers_; ++i) {
+                threads_.emplace_back([this, i]() { worker_loop(i); });
+            }
+        }
+
+        RangeThreadPool(const RangeThreadPool&) = delete;
+        RangeThreadPool& operator=(const RangeThreadPool&) = delete;
+
+        ~RangeThreadPool() {
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                stop_ = true;
+                ++generation_;
+            }
+            work_cv_.notify_all();
+            for (auto& thread : threads_) {
+                if (thread.joinable()) {
+                    thread.join();
+                }
+            }
+        }
+
+        std::size_t max_workers() const noexcept { return max_workers_; }
+
+        template <typename Fn>
+        void run(std::size_t work_items, std::size_t workers, Fn&& fn) {
+            workers = std::min({workers, max_workers_, work_items});
+            if (workers <= 1) {
+                fn(0, work_items);
+                return;
+            }
+
+            std::vector<std::pair<std::size_t, std::size_t>> local_ranges;
+            local_ranges.reserve(workers);
+            const std::size_t block = (work_items + workers - 1U) / workers;
+            std::size_t begin = 0;
+            while (begin < work_items && local_ranges.size() < workers) {
+                const std::size_t end = std::min(work_items, begin + block);
+                local_ranges.emplace_back(begin, end);
+                begin = end;
+            }
+            workers = local_ranges.size();
+            if (workers <= 1) {
+                fn(0, work_items);
+                return;
+            }
+
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                ranges_ = std::move(local_ranges);
+                task_ = [&](std::size_t range_begin, std::size_t range_end) {
+                    fn(range_begin, range_end);
+                };
+                active_workers_ = workers - 1U;
+                remaining_workers_ = active_workers_;
+                ++generation_;
+            }
+            work_cv_.notify_all();
+
+            const auto main_range = ranges_[workers - 1U];
+            fn(main_range.first, main_range.second);
+
+            std::unique_lock<std::mutex> lock(mutex_);
+            done_cv_.wait(lock, [&]() { return remaining_workers_ == 0; });
+            task_ = {};
+        }
+
+    private:
+        void worker_loop(std::size_t worker_index) {
+            std::size_t seen_generation = 0;
+            while (true) {
+                std::function<void(std::size_t, std::size_t)> task;
+                std::pair<std::size_t, std::size_t> range{0, 0};
+                {
+                    std::unique_lock<std::mutex> lock(mutex_);
+                    work_cv_.wait(lock, [&]() {
+                        return stop_ || generation_ != seen_generation;
+                    });
+                    if (stop_) {
+                        return;
+                    }
+                    seen_generation = generation_;
+                    if (worker_index >= active_workers_) {
+                        continue;
+                    }
+                    range = ranges_[worker_index];
+                    task = task_;
+                }
+
+                task(range.first, range.second);
+
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    --remaining_workers_;
+                    if (remaining_workers_ == 0) {
+                        done_cv_.notify_one();
+                    }
+                }
+            }
+        }
+
+        std::size_t max_workers_;
+        std::vector<std::thread> threads_;
+        std::mutex mutex_;
+        std::condition_variable work_cv_;
+        std::condition_variable done_cv_;
+        std::vector<std::pair<std::size_t, std::size_t>> ranges_;
+        std::function<void(std::size_t, std::size_t)> task_;
+        std::size_t active_workers_ = 0;
+        std::size_t remaining_workers_ = 0;
+        std::size_t generation_ = 0;
+        bool stop_ = false;
+    };
+
     explicit OscillatorField(std::size_t max_osc = 4096,
                              std::size_t dim = 192,
                              std::uint64_t seed = 0)
@@ -91,39 +216,49 @@ public:
 
     void embed(std::string_view text) {
         auto tokens = tokenize_code(text, std::min<std::size_t>(text.size(), 2048));
-        for (auto& t : tokens) {
+        embed_tokens(tokens);
+    }
+
+    void embed_tokens(const std::vector<std::string>& tokens) {
+        for (const auto& t : tokens) {
             if (t.empty() || t == " " || t == "\t") continue;
             if (bad_token(t)) continue;
             if (token_index_.find(t) == token_index_.end()) {
                 if (oscs_.size() >= max_osc_) drop_one();
-                oscs_.push_back(make_token_oscillator(std::move(t)));
+                oscs_.push_back(make_token_oscillator(t));
                 token_index_[oscs_.back().token] = oscs_.size() - 1U;
             }
         }
     }
 
     void learn(std::string_view text) {
-        auto tokens = tokenize_code(text, std::min<std::size_t>(text.size(), 128));
-        if (tokens.size() < 3) { embed(text); return; }
-        embed(text);
+        auto tokens = tokenize_code(text, std::min<std::size_t>(text.size(), 2048));
+        if (tokens.size() < 3) { embed_tokens(tokens); return; }
+        embed_tokens(tokens);
+        const std::size_t train_tokens = std::min<std::size_t>(tokens.size(), 128);
         struct FieldProjection {
             std::string text;
             std::vector<cx> ampl;
             std::vector<long double> padic;
             bool valid = false;
         };
-        auto make_projection = [&](std::string projection_text) {
-            auto [ampl, padic] = seed_weyl_transform(projection_text);
-            return FieldProjection{std::move(projection_text), std::move(ampl), std::move(padic), true};
+        auto fill_projection = [&](FieldProjection& projection, std::string projection_text) {
+            projection.text = std::move(projection_text);
+            seed_weyl_transform_into(projection.text, projection.ampl, projection.padic);
+            projection.valid = true;
         };
-        FieldProjection cached_next;
+        FieldProjection previous_projection;
+        FieldProjection current_projection;
+        FieldProjection context_scratch;
+        std::vector<cx> transition;
         std::vector<std::string> context_tokens;
-        for (std::size_t ti = 0; ti < tokens.size(); ++ti) {
+        for (std::size_t ti = 0; ti < train_tokens; ++ti) {
             if (bad_token(tokens[ti])) {
                 continue;
             }
             const std::string context_prefix = context_string(context_tokens);
             const std::string token_prefix = context_prefix.empty() ? tokens[ti] : context_prefix + ' ' + tokens[ti];
+            const bool projection_remains_context = context_tokens.size() + 1U <= max_context_tokens_;
             auto found = token_index_.find(tokens[ti]);
             if (found == token_index_.end()) {
                 push_context_token(context_tokens, tokens[ti]);
@@ -135,53 +270,51 @@ public:
                 continue;
             }
 
-            FieldProjection context_projection;
-            if (cached_next.valid && cached_next.text == context_prefix) {
-                context_projection = std::move(cached_next);
-                cached_next = {};
+            FieldProjection* context_projection = nullptr;
+            if (previous_projection.valid && previous_projection.text == context_prefix) {
+                context_projection = &previous_projection;
             } else {
-                context_projection = make_projection(context_prefix);
+                fill_projection(context_scratch, context_prefix);
+                context_projection = &context_scratch;
             }
-            FieldProjection full_projection = make_projection(token_prefix);
-            if (std::all_of(context_projection.ampl.begin(), context_projection.ampl.end(), [](cx v) {
+            fill_projection(current_projection, token_prefix);
+            if (std::all_of(context_projection->ampl.begin(), context_projection->ampl.end(), [](cx v) {
                     return std::abs(v) < 1e-30L;
                 })) {
                 push_context_token(context_tokens, tokens[ti]);
-                cached_next = {};
+                previous_projection.valid = false;
                 continue;
             }
 
-            normalize_complex(context_projection.ampl);
-            normalize_complex(full_projection.ampl);
             if (update_probability_ < 1.0L && random_unit() > update_probability_) {
                 push_context_token(context_tokens, tokens[ti]);
-                if (context_string(context_tokens) == full_projection.text) {
-                    cached_next = std::move(full_projection);
+                if (projection_remains_context) {
+                    std::swap(previous_projection, current_projection);
                 } else {
-                    cached_next = {};
+                    previous_projection.valid = false;
                 }
                 continue;
             }
             if (update_noise_ > 0.0L) {
-                add_complex_noise(context_projection.ampl, update_noise_);
-                add_complex_noise(full_projection.ampl, update_noise_);
-                add_real_noise(context_projection.padic, update_noise_);
-                add_real_noise(full_projection.padic, update_noise_);
+                add_complex_noise(context_projection->ampl, update_noise_);
+                add_complex_noise(current_projection.ampl, update_noise_);
+                add_real_noise(context_projection->padic, update_noise_);
+                add_real_noise(current_projection.padic, update_noise_);
             }
-            auto transition = spectral_bridge(context_projection.ampl, full_projection.ampl);
+            spectral_bridge_into(context_projection->ampl, current_projection.ampl, transition);
             update_oscillator(oscs_[positive_index],
-                              context_projection.ampl,
-                              full_projection.ampl,
+                              context_projection->ampl,
+                              current_projection.ampl,
                               transition,
-                              context_projection.padic,
-                              full_projection.padic,
+                              context_projection->padic,
+                              current_projection.padic,
                               lexical_tail(context_prefix));
-            update_contrastive_negatives(positive_index, context_projection.ampl, context_projection.padic);
+            update_contrastive_negatives(positive_index, context_projection->ampl, context_projection->padic);
             push_context_token(context_tokens, tokens[ti]);
-            if (context_string(context_tokens) == full_projection.text) {
-                cached_next = std::move(full_projection);
+            if (projection_remains_context) {
+                std::swap(previous_projection, current_projection);
             } else {
-                cached_next = {};
+                previous_projection.valid = false;
             }
         }
     }
@@ -495,6 +628,7 @@ public:
     void set_thread_count(std::size_t count) noexcept {
         const auto fallback = std::max<std::size_t>(1, std::thread::hardware_concurrency());
         thread_count_ = count == 0 ? fallback : std::clamp<std::size_t>(count, 1, 1024);
+        range_pool_.reset();
     }
 
     std::size_t thread_count() const noexcept { return thread_count_; }
@@ -799,6 +933,7 @@ private:
         max_osc_ = std::max<std::size_t>(128, read_count(input, "max_osc"));
         dim_ = std::max<std::size_t>(16, read_count(input, "dimensions"));
         thread_count_ = std::max<std::size_t>(1, read_count(input, "thread_count"));
+        range_pool_.reset();
         parallel_min_dimensions_ = std::max<std::size_t>(1, read_count(input, "parallel_min_dimensions"));
         read_pod(input, learning_rate_);
         read_pod(input, generation_temperature_);
@@ -887,10 +1022,12 @@ private:
         seed_theta_.resize(seed_primes_.size());
         seed_energy_.resize(seed_primes_.size());
         seed_padic_log_.resize(seed_primes_.size());
+        seed_prime_phase_.resize(seed_primes_.size());
         for (std::size_t i = 0; i < seed_primes_.size(); ++i) {
             seed_theta_[i] = riemann_siegel_theta(seed_primes_[i]);
             seed_energy_[i] = spectral_energy(seed_primes_[i], 32);
             seed_padic_log_[i] = std::log1p(static_cast<long double>(seed_primes_[i] % 997U));
+            seed_prime_phase_[i] = static_cast<long double>(seed_primes_[i]) * 0.0174533L;
         }
     }
 
@@ -989,6 +1126,13 @@ private:
         return std::min(thread_count_, work_items);
     }
 
+    RangeThreadPool& range_pool(std::size_t workers) const {
+        if (!range_pool_ || range_pool_->max_workers() != workers) {
+            range_pool_ = std::make_unique<RangeThreadPool>(workers);
+        }
+        return *range_pool_;
+    }
+
     template <typename Fn>
     void parallel_for_ranges(std::size_t work_items, Fn&& fn) const {
         const std::size_t workers = effective_thread_count(work_items);
@@ -996,28 +1140,7 @@ private:
             fn(0, work_items);
             return;
         }
-
-        std::vector<std::thread> threads;
-        threads.reserve(workers - 1U);
-        const std::size_t block = (work_items + workers - 1U) / workers;
-        std::size_t begin = 0;
-        for (std::size_t worker = 0; worker < workers; ++worker) {
-            const std::size_t end = std::min(work_items, begin + block);
-            if (begin >= end) {
-                break;
-            }
-            if (worker + 1U == workers || end == work_items) {
-                fn(begin, end);
-            } else {
-                threads.emplace_back([&, begin, end]() {
-                    fn(begin, end);
-                });
-            }
-            begin = end;
-        }
-        for (auto& thread : threads) {
-            thread.join();
-        }
+        range_pool(workers).run(work_items, workers, std::forward<Fn>(fn));
     }
 
     static long double complex_norm(cx value) noexcept {
@@ -1043,19 +1166,23 @@ private:
 #endif
     }
 
-    std::pair<std::vector<cx>, std::vector<long double>> seed_weyl_transform(std::string_view impulse) const {
-        std::vector<cx> ampl(dim_, cx(0, 0));
-        std::vector<long double> padic(dim_, 0.0L);
+    void seed_weyl_transform_into(std::string_view impulse,
+                                  std::vector<cx>& ampl,
+                                  std::vector<long double>& padic) const {
+        ampl.resize(dim_);
+        padic.assign(dim_, 0.0L);
         if (seed_primes_.empty()) {
-            return {ampl, padic};
+            return;
         }
 
         const auto signature = field_impulse_signature(impulse, seed_primes_.size());
+        std::vector<long double> seed_weight(signature.size(), 0.0L);
         long double padic_base = 0.0L;
         for (std::size_t i = 0; i < seed_primes_.size(); ++i) {
             const long double charge = signature[i];
             const long double act = std::clamp(0.45L + 0.35L * std::abs(charge), 0.0L, 1.0L);
             const long double en = seed_energy_[i];
+            seed_weight[i] = act * en;
             const long double padic_coordinate = seed_padic_log_[i] * (1.0L + charge);
             padic_base += act * en * padic_norm(padic_coordinate, seed_primes_[i % seed_primes_.size()] % 997U + 2U);
         }
@@ -1064,26 +1191,41 @@ private:
         }
 
         parallel_for_ranges(dim_, [&](std::size_t begin, std::size_t end) {
+            constexpr std::size_t seed_stack_capacity = 128;
+            std::array<long double, seed_stack_capacity> dither_sin{};
+            std::array<long double, seed_stack_capacity> dither_cos{};
+            std::array<long double, seed_stack_capacity> step_sin{};
+            std::array<long double, seed_stack_capacity> step_cos{};
+            for (std::size_t i = 0; i < seed_primes_.size(); ++i) {
+                const long double charge = signature[i];
+                const long double start_phase =
+                    charge * (static_cast<long double>(begin) + 1.0L) * 12.9898L + seed_prime_phase_[i];
+                const long double step_phase = charge * 12.9898L;
+                sincos_ld(start_phase, dither_sin[i], dither_cos[i]);
+                sincos_ld(step_phase, step_sin[i], step_cos[i]);
+            }
             for (std::size_t z = begin; z < end; ++z) {
                 long double sum_re = 0.0L;
                 long double sum_im = 0.0L;
                 const long double zr = zeta_basis_[z];
-                const long double z_scale = (static_cast<long double>(z) + 1.0L) * 12.9898L;
                 for (std::size_t i = 0; i < seed_primes_.size(); ++i) {
                     const long double charge = signature[i];
-                    const long double act = std::clamp(0.45L + 0.35L * std::abs(charge), 0.0L, 1.0L);
-                    const long double en = seed_energy_[i];
                     const long double theta = seed_theta_[i];
-                    const long double phase_dither =
-                        0.03L * std::sin(charge * z_scale +
-                                          static_cast<long double>(seed_primes_[i]) * 0.0174533L);
+                    const long double phase_dither = 0.03L * dither_sin[i];
                     const long double phase = theta * zr + charge * 0.5L + phase_dither;
-                    const long double weight = act * en;
+                    const long double weight = seed_weight[i];
                     long double sin_phase = 0.0L;
                     long double cos_phase = 1.0L;
                     sincos_ld(phase, sin_phase, cos_phase);
                     sum_re += weight * cos_phase;
                     sum_im += weight * sin_phase;
+
+                    const long double next_sin =
+                        dither_sin[i] * step_cos[i] + dither_cos[i] * step_sin[i];
+                    const long double next_cos =
+                        dither_cos[i] * step_cos[i] - dither_sin[i] * step_sin[i];
+                    dither_sin[i] = next_sin;
+                    dither_cos[i] = next_cos;
                 }
                 ampl[z] = cx(sum_re, sum_im);
             }
@@ -1101,6 +1243,12 @@ private:
             pn = std::sqrt(pn);
             for (auto& value : padic) value /= pn;
         }
+    }
+
+    std::pair<std::vector<cx>, std::vector<long double>> seed_weyl_transform(std::string_view impulse) const {
+        std::vector<cx> ampl;
+        std::vector<long double> padic;
+        seed_weyl_transform_into(impulse, ampl, padic);
         return {std::move(ampl), std::move(padic)};
     }
 
@@ -1149,14 +1297,33 @@ private:
         return std::clamp(std::abs(dot) / std::sqrt(left_norm * right_norm), 0.0L, 1.0L);
     }
 
-    static std::vector<cx> spectral_bridge(const std::vector<cx>& from, const std::vector<cx>& to) {
+    static long double normalized_complex_similarity(const std::vector<cx>& left, const std::vector<cx>& right) {
+        const std::size_t count = std::min(left.size(), right.size());
+        if (count == 0) {
+            return 0.0L;
+        }
+        cx dot = 0;
+        for (std::size_t i = 0; i < count; ++i) {
+            dot += conjugate_multiply(left[i], right[i]);
+        }
+        return std::clamp(std::abs(dot), 0.0L, 1.0L);
+    }
+
+    static void spectral_bridge_into(const std::vector<cx>& from,
+                                     const std::vector<cx>& to,
+                                     std::vector<cx>& bridge) {
         const std::size_t count = std::min(from.size(), to.size());
-        std::vector<cx> bridge(count, cx(1, 0));
+        bridge.resize(count);
         for (std::size_t i = 0; i < count; ++i) {
             const long double magnitude = std::max<long double>(1.0e-12L, std::abs(from[i]));
             bridge[i] = to[i] * std::conj(from[i]) / magnitude;
         }
         normalize_complex(bridge);
+    }
+
+    static std::vector<cx> spectral_bridge(const std::vector<cx>& from, const std::vector<cx>& to) {
+        std::vector<cx> bridge;
+        spectral_bridge_into(from, to, bridge);
         return bridge;
     }
 
@@ -1246,6 +1413,19 @@ private:
             return 0.0L;
         }
         return std::clamp(dot / std::sqrt(left_norm * right_norm), -1.0L, 1.0L);
+    }
+
+    static long double normalized_cosine(const std::vector<long double>& left,
+                                         const std::vector<long double>& right) {
+        const std::size_t count = std::min(left.size(), right.size());
+        if (count == 0) {
+            return 0.0L;
+        }
+        long double dot = 0.0L;
+        for (std::size_t i = 0; i < count; ++i) {
+            dot += left[i] * right[i];
+        }
+        return std::clamp(dot, -1.0L, 1.0L);
     }
 
     static void normalize_real(std::vector<long double>& values) {
@@ -1365,8 +1545,8 @@ private:
         long double best_match = -1.0L;
         for (std::size_t i = 0; i < oscillator.prototypes.size(); ++i) {
             const auto& prototype = oscillator.prototypes[i];
-            const long double spectral_match = complex_similarity(prototype.key, target_key);
-            const long double padic_match = 0.5L + 0.5L * cosine(prototype.padic_signature, target_padic);
+            const long double spectral_match = normalized_complex_similarity(prototype.key, target_key);
+            const long double padic_match = 0.5L + 0.5L * normalized_cosine(prototype.padic_signature, target_padic);
             const long double match = 0.82L * spectral_match + 0.18L * padic_match;
             if (match > best_match) {
                 best_match = match;
@@ -1446,22 +1626,45 @@ private:
         constexpr std::size_t no_prototype = std::numeric_limits<std::size_t>::max();
         std::vector<HardNegative> candidates;
         candidates.reserve(std::min<std::size_t>(oscs_.size(), 256));
-        for (std::size_t i = 0; i < oscs_.size(); ++i) {
-            if (i == positive_index || oscs_[i].observations == 0) {
-                continue;
-            }
-            const std::size_t prototypes = std::max<std::size_t>(1, oscs_[i].prototypes.size());
-            for (std::size_t p = 0; p < prototypes; ++p) {
+
+        const auto scan_range = [&](std::size_t begin, std::size_t end, std::vector<HardNegative>& out) {
+            for (std::size_t i = begin; i < end; ++i) {
+                if (i == positive_index || oscs_[i].observations == 0) {
+                    continue;
+                }
                 const bool has_prototype = !oscs_[i].prototypes.empty();
-                const auto& key = has_prototype ? oscs_[i].prototypes[p].key : oscs_[i].key;
-                const auto& padic = has_prototype ? oscs_[i].prototypes[p].padic_signature : oscs_[i].padic_signature;
-                const long double spectral_match = complex_similarity(key, target_key);
-                const long double padic_match = 0.5L + 0.5L * cosine(padic, target_padic);
-                const long double score = 0.84L * spectral_match + 0.16L * padic_match;
-                if (score > contrastive_margin_) {
-                    candidates.push_back({score, i, has_prototype ? p : no_prototype});
+                const std::size_t prototypes = std::max<std::size_t>(1, oscs_[i].prototypes.size());
+                for (std::size_t p = 0; p < prototypes; ++p) {
+                    const auto& key = has_prototype ? oscs_[i].prototypes[p].key : oscs_[i].key;
+                    const auto& padic =
+                        has_prototype ? oscs_[i].prototypes[p].padic_signature : oscs_[i].padic_signature;
+                    const long double spectral_match = normalized_complex_similarity(key, target_key);
+                    const long double padic_match = 0.5L + 0.5L * normalized_cosine(padic, target_padic);
+                    const long double score = 0.84L * spectral_match + 0.16L * padic_match;
+                    if (score > contrastive_margin_) {
+                        out.push_back({score, i, has_prototype ? p : no_prototype});
+                    }
                 }
             }
+        };
+
+        const std::size_t scan_workers =
+            (thread_count_ > 1 && dim_ >= parallel_min_dimensions_ && oscs_.size() >= thread_count_ * 2U)
+                ? std::min(thread_count_, oscs_.size())
+                : 1U;
+        if (scan_workers <= 1) {
+            scan_range(0, oscs_.size(), candidates);
+        } else {
+            std::mutex candidates_mutex;
+            range_pool(scan_workers).run(oscs_.size(), scan_workers, [&](std::size_t begin, std::size_t end) {
+                std::vector<HardNegative> local_candidates;
+                local_candidates.reserve(std::min<std::size_t>(end - begin, 64));
+                scan_range(begin, end, local_candidates);
+                if (!local_candidates.empty()) {
+                    std::lock_guard<std::mutex> lock(candidates_mutex);
+                    candidates.insert(candidates.end(), local_candidates.begin(), local_candidates.end());
+                }
+            });
         }
         if (candidates.empty()) {
             return;
@@ -1570,7 +1773,9 @@ private:
     std::vector<long double> seed_theta_;
     std::vector<long double> seed_energy_;
     std::vector<long double> seed_padic_log_;
+    std::vector<long double> seed_prime_phase_;
     mutable std::mt19937_64 rng_;
+    mutable std::unique_ptr<RangeThreadPool> range_pool_;
     long double learning_rate_ = 0.32L;
     long double generation_temperature_ = 0.08L;
     long double contrastive_rate_ = 0.08L;
