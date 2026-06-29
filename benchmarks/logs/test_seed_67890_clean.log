@@ -1,0 +1,167 @@
+dzeta_train_smoke_begin
+corpus_path=benchmarks\data\tinystories_sample.txt
+corpus_lines=1000
+oscillators_limit=65536
+dimensions=392
+seconds_budget=3600
+progress_seconds=60
+tokens_per_prompt=12
+seed=67890
+generation_temperature=0.8
+learning_rate=0.32
+observations_initial=0
+contrastive_updates_initial=0
+mean_loss_initial=0
+before_prompt_1=Once upon a time
+before_output_1=
+before_prompt_2=The little robot
+before_output_2=
+before_prompt_3=A safe assistant
+before_output_3=
+before_prompt_4=The child learned
+before_output_4=
+before_prompt_5=Open intelligence
+before_output_5=
+.\dzeta_train_smoke.exe : progress elapsed_ms=60754 lines_seen=87 oscillators=1015 observations=6939 contrastive_update
+s=9250 mean_loss=0.000248197
+строка:1 знак:1
++ .\dzeta_train_smoke.exe --corpus benchmarks\data\tinystories_sample.t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (progress elapse...oss=0.000248197:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+progress elapsed_ms=121353 lines_seen=164 oscillators=1514 observations=12697 contrastive_updates=16926 mean_loss=5.862
+37e-05
+progress elapsed_ms=181524 lines_seen=238 oscillators=1861 observations=17964 contrastive_updates=23950 mean_loss=0.000
+237264
+progress elapsed_ms=241583 lines_seen=298 oscillators=2114 observations=22591 contrastive_updates=30118 mean_loss=0.000
+182566
+progress elapsed_ms=303154 lines_seen=358 oscillators=2320 observations=26847 contrastive_updates=35794 mean_loss=9.956
+98e-05
+progress elapsed_ms=363541 lines_seen=414 oscillators=2486 observations=31069 contrastive_updates=41422 mean_loss=0.000
+100559
+progress elapsed_ms=424703 lines_seen=467 oscillators=2646 observations=35462 contrastive_updates=47278 mean_loss=0.000
+120088
+progress elapsed_ms=485811 lines_seen=523 oscillators=2778 observations=39760 contrastive_updates=53010 mean_loss=0.000
+108249
+progress elapsed_ms=546355 lines_seen=576 oscillators=2911 observations=44029 contrastive_updates=58702 mean_loss=0.000
+110278
+progress elapsed_ms=607607 lines_seen=625 oscillators=3050 observations=48171 contrastive_updates=64226 mean_loss=5.013
+79e-05
+progress elapsed_ms=667955 lines_seen=675 oscillators=3135 observations=51935 contrastive_updates=69242 mean_loss=5.199
+1e-05
+progress elapsed_ms=728811 lines_seen=728 oscillators=3260 observations=55764 contrastive_updates=74350 mean_loss=9.687
+99e-05
+progress elapsed_ms=790217 lines_seen=773 oscillators=3359 observations=59376 contrastive_updates=79166 mean_loss=0.000
+140663
+progress elapsed_ms=850314 lines_seen=819 oscillators=3425 observations=62827 contrastive_updates=83766 mean_loss=5.282
+87e-05
+progress elapsed_ms=910411 lines_seen=875 oscillators=3489 observations=66223 contrastive_updates=88294 mean_loss=5.732
+48e-05
+progress elapsed_ms=971301 lines_seen=924 oscillators=3563 observations=69731 contrastive_updates=92970 mean_loss=0.000
+144997
+progress elapsed_ms=1032007 lines_seen=967 oscillators=3630 observations=73308 contrastive_updates=97742 mean_loss=0.00
+0147869
+progress elapsed_ms=1092777 lines_seen=1013 oscillators=3680 observations=77015 contrastive_updates=102682 mean_loss=2.
+30753e-05
+progress elapsed_ms=1153829 lines_seen=1058 oscillators=3680 observations=80700 contrastive_updates=107598 mean_loss=2.
+1482e-05
+progress elapsed_ms=1213874 lines_seen=1109 oscillators=3680 observations=84457 contrastive_updates=112606 mean_loss=2.
+14798e-05
+progress elapsed_ms=1275230 lines_seen=1159 oscillators=3680 observations=88174 contrastive_updates=117562 mean_loss=2.
+16458e-05
+progress elapsed_ms=1336233 lines_seen=1207 oscillators=3680 observations=91648 contrastive_updates=122194 mean_loss=2.
+21696e-05
+progress elapsed_ms=1396761 lines_seen=1255 oscillators=3680 observations=95084 contrastive_updates=126774 mean_loss=2.
+16066e-05
+progress elapsed_ms=1457028 lines_seen=1300 oscillators=3680 observations=98541 contrastive_updates=131386 mean_loss=2.
+15194e-05
+progress elapsed_ms=1517659 lines_seen=1353 oscillators=3680 observations=102266 contrastive_updates=136350 mean_loss=2
+.24707e-05
+progress elapsed_ms=1578170 lines_seen=1397 oscillators=3680 observations=105669 contrastive_updates=140890 mean_loss=2
+.27147e-05
+progress elapsed_ms=1638915 lines_seen=1445 oscillators=3680 observations=109451 contrastive_updates=145930 mean_loss=2
+.26222e-05
+progress elapsed_ms=1700441 lines_seen=1491 oscillators=3680 observations=113096 contrastive_updates=150790 mean_loss=2
+.18357e-05
+progress elapsed_ms=1760901 lines_seen=1535 oscillators=3680 observations=116697 contrastive_updates=155594 mean_loss=2
+.26188e-05
+progress elapsed_ms=1821224 lines_seen=1582 oscillators=3680 observations=120398 contrastive_updates=160526 mean_loss=2
+.29443e-05
+progress elapsed_ms=1882137 lines_seen=1625 oscillators=3680 observations=124038 contrastive_updates=165382 mean_loss=2
+.24834e-05
+progress elapsed_ms=1942218 lines_seen=1675 oscillators=3680 observations=127802 contrastive_updates=170398 mean_loss=2
+.28045e-05
+progress elapsed_ms=2003235 lines_seen=1729 oscillators=3680 observations=131699 contrastive_updates=175594 mean_loss=2
+.21087e-05
+progress elapsed_ms=2063787 lines_seen=1777 oscillators=3680 observations=135554 contrastive_updates=180734 mean_loss=2
+.28398e-05
+progress elapsed_ms=2124432 lines_seen=1833 oscillators=3680 observations=139440 contrastive_updates=185918 mean_loss=2
+.10082e-05
+progress elapsed_ms=2184661 lines_seen=1896 oscillators=3680 observations=143261 contrastive_updates=191010 mean_loss=2
+.06542e-05
+progress elapsed_ms=2245564 lines_seen=1943 oscillators=3680 observations=147110 contrastive_updates=196142 mean_loss=2
+.22159e-05
+progress elapsed_ms=2307098 lines_seen=1990 oscillators=3680 observations=150956 contrastive_updates=201270 mean_loss=2
+.21188e-05
+progress elapsed_ms=2367281 lines_seen=2030 oscillators=3680 observations=154249 contrastive_updates=205662 mean_loss=2
+.20432e-05
+progress elapsed_ms=2428155 lines_seen=2080 oscillators=3680 observations=158091 contrastive_updates=210786 mean_loss=2
+.31055e-05
+progress elapsed_ms=2488747 lines_seen=2130 oscillators=3680 observations=161894 contrastive_updates=215854 mean_loss=2
+.15468e-05
+progress elapsed_ms=2550017 lines_seen=2178 oscillators=3680 observations=165490 contrastive_updates=220650 mean_loss=2
+.17031e-05
+progress elapsed_ms=2610098 lines_seen=2229 oscillators=3680 observations=169108 contrastive_updates=225474 mean_loss=2
+.24324e-05
+progress elapsed_ms=2671051 lines_seen=2280 oscillators=3680 observations=172871 contrastive_updates=230490 mean_loss=2
+.216e-05
+progress elapsed_ms=2732052 lines_seen=2327 oscillators=3680 observations=176356 contrastive_updates=235138 mean_loss=2
+.23003e-05
+progress elapsed_ms=2793520 lines_seen=2378 oscillators=3680 observations=180054 contrastive_updates=240070 mean_loss=2
+.21104e-05
+progress elapsed_ms=2854381 lines_seen=2417 oscillators=3680 observations=183089 contrastive_updates=244114 mean_loss=2
+.16136e-05
+progress elapsed_ms=2916363 lines_seen=2461 oscillators=3680 observations=186652 contrastive_updates=248866 mean_loss=2
+.15209e-05
+progress elapsed_ms=2977922 lines_seen=2503 oscillators=3680 observations=189956 contrastive_updates=253270 mean_loss=2
+.24615e-05
+progress elapsed_ms=3039694 lines_seen=2544 oscillators=3680 observations=193261 contrastive_updates=257678 mean_loss=2
+.29955e-05
+progress elapsed_ms=3099979 lines_seen=2587 oscillators=3680 observations=196660 contrastive_updates=262210 mean_loss=2
+.22e-05
+progress elapsed_ms=3160766 lines_seen=2632 oscillators=3680 observations=200414 contrastive_updates=267214 mean_loss=2
+.24951e-05
+progress elapsed_ms=3221293 lines_seen=2681 oscillators=3680 observations=204121 contrastive_updates=272158 mean_loss=2
+.15193e-05
+progress elapsed_ms=3281987 lines_seen=2726 oscillators=3680 observations=207329 contrastive_updates=276434 mean_loss=2
+.2953e-05
+progress elapsed_ms=3343047 lines_seen=2767 oscillators=3680 observations=210608 contrastive_updates=280806 mean_loss=2
+.1962e-05
+progress elapsed_ms=3404180 lines_seen=2807 oscillators=3680 observations=213739 contrastive_updates=284982 mean_loss=2
+.19737e-05
+progress elapsed_ms=3465215 lines_seen=2859 oscillators=3680 observations=216992 contrastive_updates=289318 mean_loss=2
+.17421e-05
+progress elapsed_ms=3525246 lines_seen=2911 oscillators=3680 observations=220379 contrastive_updates=293834 mean_loss=2
+.14855e-05
+progress elapsed_ms=3586874 lines_seen=2953 oscillators=3680 observations=223848 contrastive_updates=298462 mean_loss=2
+.24488e-05
+elapsed_ms=3601486
+epochs_completed=3
+lines_seen=2961
+lines_per_second=0.822161
+oscillators_after=3680
+observations_after=224543
+contrastive_updates_after=299386
+mean_loss_after=2.15898e-05
+after_prompt_1=Once upon a time
+after_output_1=paintings struggle welcomed gathering concentrated returned organize discoveries performers experience surrounding desperately
+after_prompt_2=The little robot
+after_output_2=protested returned paintings gathering surrender struggle organize performers discoveries desperately supermarket experience
+after_prompt_3=A safe assistant
+after_output_3=paintings gathering struggle returned organize performers unbelievably discoveries experience concentrated surrounding containers
+after_prompt_4=The child learned
+after_output_4=insisting intrigued paintings gathering struggle returned organize performers discoveries experience surrounding containers
+after_prompt_5=Open intelligence
+after_output_5=paintings gathering struggle organize returned discoveries concentrated experience encouraging performers unbelievably struggling
+dzeta_train_smoke_end

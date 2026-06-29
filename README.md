@@ -126,6 +126,67 @@ benchmarks/logs/2026-06-28-adaptive-contrastive-10min.md
 
 The adaptive contrastive run uses 65,536 oscillator capacity, 192 spectral dimensions, temperature 0.8, and a fixed seed for reproducibility. It reached 85,134 observations and 113,510 contrastive updates in 10 minutes on the local CPU. The outputs are more diverse than the original deterministic baseline, but still associative short continuations rather than coherent long-form generation.
 
+## Latest Experimental Signal
+
+The strongest recent run is the saved 9000-dimensional stochastic TinyStories experiment from 2026-06-29:
+
+```text
+dimensions:          9000
+threads:             20
+time:                603.498 seconds
+lines seen:          144 / 1000
+oscillators active:  1530 / 65536
+observations:        8824
+contrastive updates: 11762
+mean loss:           2.21069e-05
+saved model size:    4.295 GiB
+```
+
+The result is not a random word spike. The continuations repeatedly form compressed story-like traces with characters, movement, objects, and exploration motifs. That is a meaningful signal that the field is storing and reusing structure, and it makes the AGI direction feel closer than the usual assumption that only giant Transformer-scale systems can show nontrivial language behavior.
+
+The global token statistics also look language-like rather than arbitrary. The strongest tokens are function words and pronouns (`the`, `and`, `was`, `to`, `it`, `He`, `She`, `her`), which is the expected skeleton of English story text. Content prompts such as `safe assistant explores` produce a compact sequence with action, object, event shift, emotion, cause, time, and characters:
+
+```text
+exploring something different Suddenly beautiful special treasures started walking excited because together After friends asked little
+```
+
+This does not prove semantic understanding, but it is stronger than random association. A 10-minute CPU-only run over 144 lines produced a stable micro-story attractor with grammar-like scaffolding and reusable content motifs. That is enough to justify more serious experiments.
+
+At the same time, the model inspector shows a real remaining weakness: nearest-weight links are still dominated by high-frequency bridge tokens such as `the`, `and`, `was`, and `to`. The right interpretation is precise: the current model has a strong global story/language attractor, but it has not yet cleanly separated prompt-specific semantic neighborhoods. The next serious work is to suppress frequency-only attractors, weight content tokens more strongly, and compare multi-seed runs with the saved-model inspector.
+
+Raw logs and inspection output are kept in `benchmarks/logs/`:
+
+```text
+2026-06-29-dim9000-stochastic-10min-safe.out.txt
+2026-06-29-dim9000-stochastic-10min-safe.err.txt
+2026-06-29-dim9000-stochastic-inspect.txt
+2026-06-29-dim9000-stochastic-inspect-content.txt
+```
+
+Large saved model binaries are intentionally not committed to git. A full 9000-dimensional dump stores multiple `long double` and `complex<long double>` vectors per oscillator plus context prototypes, so it is several GiB rather than tens of MiB. Use Git LFS or a release artifact if publishing those weights becomes necessary.
+
+## Model Persistence and Inspection
+
+`OscillatorField` can now save and load the learned oscillator state. The benchmark runner supports:
+
+```text
+--save-model PATH
+--load-model PATH
+--autosave-seconds N
+--shuffle-lines
+--update-probability X
+--update-noise X
+--random-init-scale X
+```
+
+The separate `dzeta_inspect_model` tool loads a saved field without training and reports:
+
+- strongest tokens by observations, strength, loss, and prototype count;
+- nearest token links split into next-state, shared-context, transition, and p-adic components;
+- prompt continuations from the saved model.
+
+This makes the system easier to criticize: if outputs improve but weight links stay frequency-dominated, the logs will show it directly.
+
 ## Design Principles
 
 - **Local first:** the core should run on ordinary CPU hardware.
@@ -140,6 +201,7 @@ The adaptive contrastive run uses 65,536 oscillator capacity, 192 spectral dimen
 - There are smoke and learning tests, but no full benchmark suite or CI wired into this repository yet.
 - Generation quality is experimental and should not be compared to trained LLMs as if it were the same class of system.
 - The 10-minute TinyStories run still completed only two corpus passes on the local CPU; stronger claims require longer runs, more seeds, and task-specific evaluation.
+- The 9000-dimensional saved model is currently large because it uses full-precision `long double` spectral state and saves prototypes. A compact `float32` or quantized artifact format is a future engineering task.
 - The math layers are finite diagnostics and analogues, not theorem-proving machinery.
 
 ## Roadmap

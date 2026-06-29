@@ -1,0 +1,220 @@
+dzeta_train_smoke_begin
+corpus_path=benchmarks\data\tinystories_sample.txt
+corpus_lines=1000
+oscillators_limit=65536
+dimensions=492
+seconds_budget=30600
+progress_seconds=60
+tokens_per_prompt=12
+seed=60860
+generation_temperature=0.8
+learning_rate=0.252
+observations_initial=0
+contrastive_updates_initial=0
+mean_loss_initial=0
+before_prompt_1=Once upon a time
+before_output_1=
+before_prompt_2=The little robot
+before_output_2=
+before_prompt_3=A safe assistant
+before_output_3=
+before_prompt_4=The child learned
+before_output_4=
+before_prompt_5=Open intelligence
+before_output_5=
+.\dzeta_train_smoke.exe : progress elapsed_ms=60334 lines_seen=60 oscillators=767 observations=4949 contrastive_updates
+=6594 mean_loss=0.000264899
+строка:1 знак:1
++ .\dzeta_train_smoke.exe --corpus benchmarks\data\tinystories_sample.t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (progress elapse...oss=0.000264899:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+progress elapsed_ms=121110 lines_seen=120 oscillators=1255 observations=9414 contrastive_updates=12550 mean_loss=0.0001
+99932
+progress elapsed_ms=182171 lines_seen=169 oscillators=1543 observations=13135 contrastive_updates=17510 mean_loss=0.000
+243501
+progress elapsed_ms=242710 lines_seen=225 oscillators=1797 observations=16993 contrastive_updates=22654 mean_loss=0.000
+11366
+progress elapsed_ms=303103 lines_seen=277 oscillators=2033 observations=20922 contrastive_updates=27894 mean_loss=0.000
+340856
+progress elapsed_ms=364529 lines_seen=330 oscillators=2225 observations=24827 contrastive_updates=33098 mean_loss=0.000
+124778
+progress elapsed_ms=425390 lines_seen=381 oscillators=2391 observations=28566 contrastive_updates=38086 mean_loss=8.504
+8e-05
+progress elapsed_ms=486054 lines_seen=425 oscillators=2525 observations=32072 contrastive_updates=42758 mean_loss=5.470
+66e-05
+progress elapsed_ms=546985 lines_seen=467 oscillators=2646 observations=35462 contrastive_updates=47278 mean_loss=9.474
+9e-05
+progress elapsed_ms=608448 lines_seen=509 oscillators=2743 observations=38709 contrastive_updates=51610 mean_loss=0.000
+131344
+progress elapsed_ms=668784 lines_seen=547 oscillators=2840 observations=41779 contrastive_updates=55702 mean_loss=9.530
+93e-05
+progress elapsed_ms=729692 lines_seen=587 oscillators=2952 observations=44926 contrastive_updates=59898 mean_loss=5.649
+46e-05
+progress elapsed_ms=791066 lines_seen=623 oscillators=3047 observations=47984 contrastive_updates=63974 mean_loss=7.396
+75e-05
+progress elapsed_ms=851752 lines_seen=660 oscillators=3117 observations=50948 contrastive_updates=67926 mean_loss=8.791
+01e-05
+progress elapsed_ms=911757 lines_seen=706 oscillators=3196 observations=53954 contrastive_updates=71934 mean_loss=0.000
+421212
+progress elapsed_ms=971915 lines_seen=744 oscillators=3300 observations=57015 contrastive_updates=76018 mean_loss=4.039
+99e-05
+progress elapsed_ms=1033473 lines_seen=783 oscillators=3373 observations=60111 contrastive_updates=80146 mean_loss=3.16
+687e-05
+progress elapsed_ms=1094095 lines_seen=828 oscillators=3432 observations=63304 contrastive_updates=84402 mean_loss=6.07
+032e-05
+progress elapsed_ms=1154257 lines_seen=876 oscillators=3489 observations=66281 contrastive_updates=88370 mean_loss=2.51
+142e-05
+progress elapsed_ms=1214257 lines_seen=917 oscillators=3549 observations=69194 contrastive_updates=92254 mean_loss=5.10
+669e-05
+progress elapsed_ms=1276648 lines_seen=953 oscillators=3604 observations=72114 contrastive_updates=96150 mean_loss=3.12
+814e-05
+progress elapsed_ms=1336723 lines_seen=986 oscillators=3658 observations=74726 contrastive_updates=99630 mean_loss=6.80
+704e-05
+progress elapsed_ms=1397717 lines_seen=1023 oscillators=3680 observations=77817 contrastive_updates=103754 mean_loss=1.
+67468e-05
+progress elapsed_ms=1457747 lines_seen=1061 oscillators=3680 observations=80842 contrastive_updates=107786 mean_loss=1.
+67425e-05
+progress elapsed_ms=1518648 lines_seen=1099 oscillators=3680 observations=83750 contrastive_updates=111662 mean_loss=1.
+62009e-05
+progress elapsed_ms=1578661 lines_seen=1137 oscillators=3680 observations=86533 contrastive_updates=115374 mean_loss=1.
+61879e-05
+progress elapsed_ms=1638954 lines_seen=1175 oscillators=3680 observations=89419 contrastive_updates=119222 mean_loss=1.
+65336e-05
+progress elapsed_ms=1699425 lines_seen=1218 oscillators=3680 observations=92402 contrastive_updates=123198 mean_loss=1.
+64886e-05
+progress elapsed_ms=1760112 lines_seen=1260 oscillators=3680 observations=95479 contrastive_updates=127302 mean_loss=1.
+6898e-05
+progress elapsed_ms=1820398 lines_seen=1300 oscillators=3680 observations=98541 contrastive_updates=131386 mean_loss=1.
+59726e-05
+progress elapsed_ms=1881037 lines_seen=1344 oscillators=3680 observations=101665 contrastive_updates=135550 mean_loss=1
+.63335e-05
+progress elapsed_ms=1941129 lines_seen=1385 oscillators=3680 observations=104742 contrastive_updates=139654 mean_loss=1
+.71861e-05
+progress elapsed_ms=2001497 lines_seen=1424 oscillators=3680 observations=107845 contrastive_updates=143790 mean_loss=1
+.71799e-05
+progress elapsed_ms=2062141 lines_seen=1463 oscillators=3680 observations=110956 contrastive_updates=147938 mean_loss=1
+.64557e-05
+progress elapsed_ms=2122682 lines_seen=1502 oscillators=3680 observations=114005 contrastive_updates=152002 mean_loss=1
+.74376e-05
+progress elapsed_ms=2183800 lines_seen=1538 oscillators=3680 observations=116916 contrastive_updates=155886 mean_loss=1
+.73641e-05
+progress elapsed_ms=2244051 lines_seen=1577 oscillators=3680 observations=120000 contrastive_updates=159998 mean_loss=1
+.68774e-05
+progress elapsed_ms=2304569 lines_seen=1613 oscillators=3680 observations=122978 contrastive_updates=163966 mean_loss=1
+.64874e-05
+progress elapsed_ms=2365048 lines_seen=1647 oscillators=3680 observations=125791 contrastive_updates=167718 mean_loss=1
+.70355e-05
+progress elapsed_ms=2425970 lines_seen=1687 oscillators=3680 observations=128645 contrastive_updates=171522 mean_loss=1
+.69546e-05
+progress elapsed_ms=2486090 lines_seen=1729 oscillators=3680 observations=131699 contrastive_updates=175594 mean_loss=1
+.64504e-05
+progress elapsed_ms=2547623 lines_seen=1767 oscillators=3680 observations=134741 contrastive_updates=179650 mean_loss=1
+.66689e-05
+progress elapsed_ms=2609497 lines_seen=1802 oscillators=3680 observations=137479 contrastive_updates=183302 mean_loss=1
+.66905e-05
+progress elapsed_ms=2671613 lines_seen=1841 oscillators=3680 observations=140033 contrastive_updates=186706 mean_loss=1
+.71498e-05
+progress elapsed_ms=2732626 lines_seen=1888 oscillators=3680 observations=142791 contrastive_updates=190386 mean_loss=1
+.73981e-05
+progress elapsed_ms=2793589 lines_seen=1924 oscillators=3680 observations=145598 contrastive_updates=194126 mean_loss=1
+.67608e-05
+progress elapsed_ms=2853886 lines_seen=1958 oscillators=3680 observations=148402 contrastive_updates=197866 mean_loss=1
+.69007e-05
+progress elapsed_ms=2913897 lines_seen=1992 oscillators=3680 observations=151081 contrastive_updates=201438 mean_loss=1
+.6698e-05
+progress elapsed_ms=2974998 lines_seen=2027 oscillators=3680 observations=154005 contrastive_updates=205338 mean_loss=1
+.711e-05
+progress elapsed_ms=3035731 lines_seen=2064 oscillators=3680 observations=156958 contrastive_updates=209274 mean_loss=1
+.67693e-05
+progress elapsed_ms=3096255 lines_seen=2101 oscillators=3680 observations=159728 contrastive_updates=212966 mean_loss=1
+.67631e-05
+progress elapsed_ms=3157213 lines_seen=2142 oscillators=3680 observations=162793 contrastive_updates=217054 mean_loss=1
+.65423e-05
+progress elapsed_ms=3218474 lines_seen=2183 oscillators=3680 observations=165832 contrastive_updates=221106 mean_loss=1
+.65223e-05
+progress elapsed_ms=3278604 lines_seen=2224 oscillators=3680 observations=168638 contrastive_updates=224846 mean_loss=1
+.55348e-05
+progress elapsed_ms=3339531 lines_seen=2262 oscillators=3680 observations=171518 contrastive_updates=228686 mean_loss=1
+.69496e-05
+progress elapsed_ms=3399852 lines_seen=2298 oscillators=3680 observations=174325 contrastive_updates=232430 mean_loss=1
+.62784e-05
+progress elapsed_ms=3460235 lines_seen=2334 oscillators=3680 observations=176867 contrastive_updates=235818 mean_loss=1
+.58038e-05
+progress elapsed_ms=3521585 lines_seen=2372 oscillators=3680 observations=179679 contrastive_updates=239570 mean_loss=1
+.65878e-05
+progress elapsed_ms=3582320 lines_seen=2412 oscillators=3680 observations=182608 contrastive_updates=243474 mean_loss=1
+.69171e-05
+progress elapsed_ms=3644624 lines_seen=2450 oscillators=3680 observations=185787 contrastive_updates=247714 mean_loss=1
+.68328e-05
+progress elapsed_ms=3705552 lines_seen=2491 oscillators=3680 observations=188963 contrastive_updates=251946 mean_loss=1
+.62341e-05
+progress elapsed_ms=3765680 lines_seen=2529 oscillators=3680 observations=192008 contrastive_updates=256006 mean_loss=1
+.60525e-05
+progress elapsed_ms=3827252 lines_seen=2567 oscillators=3680 observations=194947 contrastive_updates=259926 mean_loss=1
+.71202e-05
+progress elapsed_ms=3887471 lines_seen=2602 oscillators=3680 observations=197901 contrastive_updates=263866 mean_loss=1
+.66618e-05
+progress elapsed_ms=3948412 lines_seen=2640 oscillators=3680 observations=201101 contrastive_updates=268130 mean_loss=1
+.73795e-05
+progress elapsed_ms=4008739 lines_seen=2683 oscillators=3680 observations=204239 contrastive_updates=272314 mean_loss=1
+.52569e-05
+progress elapsed_ms=4069233 lines_seen=2727 oscillators=3680 observations=207418 contrastive_updates=276554 mean_loss=1
+.62087e-05
+progress elapsed_ms=4130287 lines_seen=2767 oscillators=3680 observations=210608 contrastive_updates=280806 mean_loss=1
+.64161e-05
+progress elapsed_ms=4190990 lines_seen=2808 oscillators=3680 observations=213805 contrastive_updates=285070 mean_loss=1
+.61869e-05
+progress elapsed_ms=4251614 lines_seen=2858 oscillators=3680 observations=216893 contrastive_updates=289186 mean_loss=1
+.4867e-05
+progress elapsed_ms=4312618 lines_seen=2905 oscillators=3680 observations=219810 contrastive_updates=293078 mean_loss=1
+.67694e-05
+progress elapsed_ms=4373245 lines_seen=2943 oscillators=3680 observations=222977 contrastive_updates=297298 mean_loss=1
+.65182e-05
+progress elapsed_ms=4434024 lines_seen=2980 oscillators=3680 observations=225926 contrastive_updates=301230 mean_loss=1
+.6814e-05
+progress elapsed_ms=4494265 lines_seen=3016 oscillators=3680 observations=228998 contrastive_updates=305326 mean_loss=1
+.66118e-05
+progress elapsed_ms=4555501 lines_seen=3054 oscillators=3680 observations=232085 contrastive_updates=309442 mean_loss=1
+.61529e-05
+progress elapsed_ms=4615553 lines_seen=3095 oscillators=3680 observations=235165 contrastive_updates=313550 mean_loss=1
+.6585e-05
+progress elapsed_ms=4676214 lines_seen=3135 oscillators=3680 observations=238109 contrastive_updates=317474 mean_loss=1
+.66724e-05
+progress elapsed_ms=4736522 lines_seen=3176 oscillators=3680 observations=241217 contrastive_updates=321618 mean_loss=1
+.66417e-05
+progress elapsed_ms=4796708 lines_seen=3220 oscillators=3680 observations=244307 contrastive_updates=325738 mean_loss=1
+.66309e-05
+progress elapsed_ms=4858145 lines_seen=3262 oscillators=3680 observations=247385 contrastive_updates=329842 mean_loss=1
+.68536e-05
+progress elapsed_ms=4919464 lines_seen=3302 oscillators=3680 observations=250380 contrastive_updates=333838 mean_loss=1
+.64265e-05
+progress elapsed_ms=4980017 lines_seen=3343 oscillators=3680 observations=253328 contrastive_updates=337766 mean_loss=1
+.58859e-05
+progress elapsed_ms=5041101 lines_seen=3382 oscillators=3680 observations=256263 contrastive_updates=341682 mean_loss=1
+.60412e-05
+progress elapsed_ms=5103043 lines_seen=3416 oscillators=3680 observations=258862 contrastive_updates=345146 mean_loss=1
+.66374e-05
+progress elapsed_ms=5165124 lines_seen=3452 oscillators=3680 observations=261836 contrastive_updates=349110 mean_loss=1
+.6662e-05
+progress elapsed_ms=5226624 lines_seen=3490 oscillators=3680 observations=264760 contrastive_updates=353010 mean_loss=1
+.6732e-05
+progress elapsed_ms=5287226 lines_seen=3527 oscillators=3680 observations=267733 contrastive_updates=356974 mean_loss=1
+.62329e-05
+progress elapsed_ms=5347237 lines_seen=3565 oscillators=3680 observations=270630 contrastive_updates=360838 mean_loss=1
+.54923e-05
+progress elapsed_ms=5407821 lines_seen=3599 oscillators=3680 observations=273532 contrastive_updates=364706 mean_loss=1
+.65416e-05
+progress elapsed_ms=5468575 lines_seen=3633 oscillators=3680 observations=276370 contrastive_updates=368490 mean_loss=1
+.66981e-05
+progress elapsed_ms=5530560 lines_seen=3671 oscillators=3680 observations=279264 contrastive_updates=372350 mean_loss=1
+.58424e-05
+progress elapsed_ms=5591571 lines_seen=3711 oscillators=3680 observations=281957 contrastive_updates=375938 mean_loss=1
+.69851e-05
+progress elapsed_ms=5652918 lines_seen=3748 oscillators=3680 observations=284946 contrastive_updates=379926 mean_loss=1
+.69402e-05
+progress elapsed_ms=5713611 lines_seen=3784 oscillators=3680 observations=287783 contrastive_updates=383706 mean_loss=1
+.60372e-05
+progress elapsed_ms=5774345 lines_seen=3825 oscillators=3680 observations=290728 contrastive_updates=387634 mean_loss=1
+.61675e-05

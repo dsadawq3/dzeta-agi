@@ -1,0 +1,67 @@
+dzeta_train_smoke_begin
+corpus_path=benchmarks\data\tinystories_sample.txt
+corpus_lines=1000
+oscillators_limit=65536
+dimensions=2000
+seconds_budget=600
+progress_seconds=60
+tokens_per_prompt=24
+seed=60860
+generation_temperature=1
+learning_rate=1
+observations_initial=0
+contrastive_updates_initial=0
+mean_loss_initial=0
+before_prompt_1=Once upon a time
+before_output_1=
+before_prompt_2=The little robot
+before_output_2=
+before_prompt_3=A safe assistant
+before_output_3=
+before_prompt_4=The child learned
+before_output_4=
+before_prompt_5=Open intelligence
+before_output_5=
+.\dzeta_train_smoke.exe : progress elapsed_ms=61622 lines_seen=17 oscillators=355 observations=1474 contrastive_updates
+=1962 mean_loss=0.000116628
+строка:1 знак:1
++ .\dzeta_train_smoke.exe --corpus benchmarks\data\tinystories_sample.t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (progress elapse...oss=0.000116628:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+progress elapsed_ms=123819 lines_seen=34 oscillators=526 observations=2902 contrastive_updates=3866 mean_loss=9.57704e-
+05
+progress elapsed_ms=185206 lines_seen=50 oscillators=645 observations=4170 contrastive_updates=5558 mean_loss=9.38344e-
+05
+progress elapsed_ms=246757 lines_seen=68 oscillators=850 observations=5525 contrastive_updates=7362 mean_loss=0.0001173
+02
+progress elapsed_ms=310473 lines_seen=86 oscillators=1006 observations=6846 contrastive_updates=9126 mean_loss=6.75681e
+-05
+progress elapsed_ms=370727 lines_seen=102 oscillators=1136 observations=8044 contrastive_updates=10722 mean_loss=7.8488
+6e-05
+progress elapsed_ms=431450 lines_seen=117 oscillators=1242 observations=9207 contrastive_updates=12274 mean_loss=8.2726
+6e-05
+progress elapsed_ms=495326 lines_seen=134 oscillators=1350 observations=10420 contrastive_updates=13890 mean_loss=0.000
+104599
+progress elapsed_ms=557421 lines_seen=148 oscillators=1444 observations=11560 contrastive_updates=15410 mean_loss=5.725
+44e-05
+elapsed_ms=601556
+epochs_completed=1
+lines_seen=159
+lines_per_second=0.264315
+oscillators_after=1493
+observations_after=12307
+contrastive_updates_after=16406
+mean_loss_after=6.85254e-05
+after_prompt_1=Once upon a time
+after_output_1=everything continued pondered something special friends Everyone delighted squirrels butterfly excited wondered decided curiously Suddenly explore ventured because wanted himself outside beautiful island carefully
+after_prompt_2=The little robot
+after_output_2=determined protested everything squirrels butterfly something special surprising exciting decided excited wondered explore continued friends forever Everyone delighted Suddenly outside because always looking favorite
+after_prompt_3=A safe assistant
+after_output_3=everything expected continued something special exciting butterfly excited wondered decided curiously Suddenly explore uncomfortable friends Everyone delighted squirrels because always had successful scourging wanted
+after_prompt_4=The child learned
+after_output_4=persistent insisting everything continued journey something special exciting butterfly excited decided curiously explore uncomfortable beautiful surrounding friends Everyone delighted squirrels Suddenly outside because always
+after_prompt_5=Open intelligence
+after_output_5=everything continued pondered something surprising magnet exciting decided curiously butterfly excited wondered friends delighted squirrels Suddenly explore uncomfortable outside because wanted special rabbit beautiful
+dzeta_train_smoke_end

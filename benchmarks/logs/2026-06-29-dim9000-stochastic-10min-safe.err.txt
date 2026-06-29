@@ -1,0 +1,15 @@
+progress elapsed_ms=60397 lines_seen=31 oscillators=613 observations=1851 contrastive_updates=2466 mean_loss=4.50044e-05
+autosave_model=C:\dzeta_backup\models\dim9000_20threads_stochastic.dzeta.bin elapsed_ms=60397
+progress elapsed_ms=121981 lines_seen=49 oscillators=828 observations=2997 contrastive_updates=3994 mean_loss=4.6547e-05
+autosave_model=C:\dzeta_backup\models\dim9000_20threads_stochastic.dzeta.bin elapsed_ms=133459
+progress elapsed_ms=185074 lines_seen=66 oscillators=969 observations=3950 contrastive_updates=5262 mean_loss=1.95166e-05
+autosave_model=C:\dzeta_backup\models\dim9000_20threads_stochastic.dzeta.bin elapsed_ms=214785
+progress elapsed_ms=246763 lines_seen=79 oscillators=1095 observations=4739 contrastive_updates=6314 mean_loss=4.81426e-05
+autosave_model=C:\dzeta_backup\models\dim9000_20threads_stochastic.dzeta.bin elapsed_ms=297273
+progress elapsed_ms=324740 lines_seen=95 oscillators=1206 observations=5721 contrastive_updates=7626 mean_loss=1.25516e-05
+autosave_model=C:\dzeta_backup\models\dim9000_20threads_stochastic.dzeta.bin elapsed_ms=382301
+progress elapsed_ms=415431 lines_seen=113 oscillators=1330 observations=6794 contrastive_updates=9054 mean_loss=2.21189e-05
+autosave_model=C:\dzeta_backup\models\dim9000_20threads_stochastic.dzeta.bin elapsed_ms=472131
+progress elapsed_ms=506478 lines_seen=127 oscillators=1432 observations=7785 contrastive_updates=10378 mean_loss=1.38257e-05
+autosave_model=C:\dzeta_backup\models\dim9000_20threads_stochastic.dzeta.bin elapsed_ms=564455
+progress elapsed_ms=598296 lines_seen=143 oscillators=1524 observations=8744 contrastive_updates=11654 mean_loss=2.01812e-05

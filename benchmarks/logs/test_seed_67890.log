@@ -1,0 +1,107 @@
+dzeta_train_smoke_begin
+corpus_path=benchmarks\data\tinystories_sample.txt
+corpus_lines=1000
+oscillators_limit=65536
+dimensions=192
+seconds_budget=1800
+progress_seconds=60
+tokens_per_prompt=12
+seed=67890
+generation_temperature=0.8
+learning_rate=0.32
+observations_initial=0
+contrastive_updates_initial=0
+mean_loss_initial=0
+before_prompt_1=Once upon a time
+before_output_1=
+before_prompt_2=The little robot
+before_output_2=
+before_prompt_3=A safe assistant
+before_output_3=
+before_prompt_4=The child learned
+before_output_4=
+before_prompt_5=Open intelligence
+before_output_5=
+.\dzeta_train_smoke.exe : progress elapsed_ms=60013 lines_seen=158 oscillators=1489 observations=12221 contrastive_upda
+tes=16290 mean_loss=0.000485235
+строка:1 знак:1
++ .\dzeta_train_smoke.exe --corpus benchmarks\data\tinystories_sample.t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (progress elapse...oss=0.000485235:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+progress elapsed_ms=120124 lines_seen=294 oscillators=2095 observations=22264 contrastive_updates=29682 mean_loss=0.000
+220974
+progress elapsed_ms=180140 lines_seen=417 oscillators=2497 observations=31355 contrastive_updates=41802 mean_loss=0.000
+384483
+progress elapsed_ms=240683 lines_seen=524 oscillators=2783 observations=39857 contrastive_updates=53138 mean_loss=0.000
+186304
+progress elapsed_ms=301349 lines_seen=628 oscillators=3052 observations=48383 contrastive_updates=64506 mean_loss=6.709
+61e-05
+progress elapsed_ms=361464 lines_seen=739 oscillators=3293 observations=56547 contrastive_updates=75394 mean_loss=0.000
+296343
+progress elapsed_ms=421713 lines_seen=844 oscillators=3450 observations=64365 contrastive_updates=85818 mean_loss=0.000
+227504
+progress elapsed_ms=482246 lines_seen=952 oscillators=3604 observations=72011 contrastive_updates=96010 mean_loss=0.000
+30702
+progress elapsed_ms=542378 lines_seen=1038 oscillators=3680 observations=79084 contrastive_updates=105442 mean_loss=3.9
+4685e-05
+progress elapsed_ms=602742 lines_seen=1132 oscillators=3680 observations=86179 contrastive_updates=114902 mean_loss=3.9
+8733e-05
+progress elapsed_ms=663243 lines_seen=1236 oscillators=3680 observations=93688 contrastive_updates=124914 mean_loss=3.7
+45e-05
+progress elapsed_ms=723565 lines_seen=1338 oscillators=3680 observations=101275 contrastive_updates=135030 mean_loss=3.
+91807e-05
+progress elapsed_ms=784111 lines_seen=1435 oscillators=3680 observations=108793 contrastive_updates=145054 mean_loss=4.
+09171e-05
+progress elapsed_ms=844533 lines_seen=1528 oscillators=3680 observations=116091 contrastive_updates=154786 mean_loss=4.
+07875e-05
+progress elapsed_ms=905204 lines_seen=1612 oscillators=3680 observations=122892 contrastive_updates=163854 mean_loss=3.
+89828e-05
+progress elapsed_ms=965701 lines_seen=1701 oscillators=3680 observations=129451 contrastive_updates=172598 mean_loss=3.
+88006e-05
+progress elapsed_ms=1025951 lines_seen=1785 oscillators=3680 observations=136145 contrastive_updates=181522 mean_loss=4
+.16924e-05
+progress elapsed_ms=1086221 lines_seen=1888 oscillators=3680 observations=142791 contrastive_updates=190386 mean_loss=4
+.10765e-05
+progress elapsed_ms=1146261 lines_seen=1969 oscillators=3680 observations=149297 contrastive_updates=199058 mean_loss=3
+.92338e-05
+progress elapsed_ms=1207304 lines_seen=2055 oscillators=3680 observations=156318 contrastive_updates=208422 mean_loss=3
+.93737e-05
+progress elapsed_ms=1267790 lines_seen=2150 oscillators=3680 observations=163412 contrastive_updates=217878 mean_loss=3
+.94855e-05
+progress elapsed_ms=1328276 lines_seen=2248 oscillators=3680 observations=170487 contrastive_updates=227314 mean_loss=3
+.78297e-05
+progress elapsed_ms=1388829 lines_seen=2348 oscillators=3680 observations=177835 contrastive_updates=237110 mean_loss=4
+.05628e-05
+progress elapsed_ms=1449204 lines_seen=2438 oscillators=3680 observations=184894 contrastive_updates=246522 mean_loss=3
+.86269e-05
+progress elapsed_ms=1509285 lines_seen=2521 oscillators=3680 observations=191305 contrastive_updates=255070 mean_loss=3
+.793e-05
+progress elapsed_ms=1569892 lines_seen=2602 oscillators=3680 observations=197901 contrastive_updates=263866 mean_loss=3
+.98378e-05
+progress elapsed_ms=1630013 lines_seen=2694 oscillators=3680 observations=204924 contrastive_updates=273230 mean_loss=3
+.99739e-05
+progress elapsed_ms=1690388 lines_seen=2776 oscillators=3680 observations=211331 contrastive_updates=281770 mean_loss=3
+.9859e-05
+progress elapsed_ms=1750776 lines_seen=2866 oscillators=3680 observations=217477 contrastive_updates=289966 mean_loss=3
+.9167e-05
+elapsed_ms=1800203
+epochs_completed=3
+lines_seen=2943
+lines_per_second=1.63482
+oscillators_after=3680
+observations_after=222977
+contrastive_updates_after=297298
+mean_loss_after=3.9272e-05
+after_prompt_1=Once upon a time
+after_output_1=agreement welcomed gathering paintings farewell balanced organize discoveries illuminated experience concentrated apologised
+after_prompt_2=The little robot
+after_output_2=paintings protested gathering agreement surrender balanced organize experience illuminated concentrated apologised attracting
+after_prompt_3=A safe assistant
+after_output_3=agreement paintings gathering balanced organize experience concentrated illuminated discoveries attracting successful surrounding
+after_prompt_4=The child learned
+after_output_4=insisting intrigued paintings gathering agreement balanced organize experience concentrated discoveries illuminated successful
+after_prompt_5=Open intelligence
+after_output_5=paintings gathering agreement organize balanced fascinating experience illuminated discoveries attracting surrounding successful
+dzeta_train_smoke_end

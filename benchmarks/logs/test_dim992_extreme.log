@@ -1,0 +1,67 @@
+dzeta_train_smoke_begin
+corpus_path=benchmarks\data\tinystories_sample.txt
+corpus_lines=1000
+oscillators_limit=65536
+dimensions=992
+seconds_budget=600
+progress_seconds=60
+tokens_per_prompt=24
+seed=60860
+generation_temperature=1
+learning_rate=1
+observations_initial=0
+contrastive_updates_initial=0
+mean_loss_initial=0
+before_prompt_1=Once upon a time
+before_output_1=
+before_prompt_2=The little robot
+before_output_2=
+before_prompt_3=A safe assistant
+before_output_3=
+before_prompt_4=The child learned
+before_output_4=
+before_prompt_5=Open intelligence
+before_output_5=
+.\dzeta_train_smoke.exe : progress elapsed_ms=61694 lines_seen=34 oscillators=526 observations=2902 contrastive_updates
+=3866 mean_loss=0.000143088
+строка:1 знак:1
++ .\dzeta_train_smoke.exe --corpus benchmarks\data\tinystories_sample.t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (progress elapse...oss=0.000143088:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+progress elapsed_ms=122129 lines_seen=67 oscillators=837 observations=5449 contrastive_updates=7262 mean_loss=0.0001097
+56
+progress elapsed_ms=183067 lines_seen=98 oscillators=1117 observations=7802 contrastive_updates=10398 mean_loss=0.00011
+0468
+progress elapsed_ms=245203 lines_seen=128 oscillators=1318 observations=10053 contrastive_updates=13402 mean_loss=7.735
+05e-05
+progress elapsed_ms=306082 lines_seen=159 oscillators=1493 observations=12307 contrastive_updates=16406 mean_loss=7.863
+86e-05
+progress elapsed_ms=368105 lines_seen=187 oscillators=1645 observations=14410 contrastive_updates=19210 mean_loss=7.917
+98e-05
+progress elapsed_ms=429564 lines_seen=218 oscillators=1774 observations=16535 contrastive_updates=22042 mean_loss=5.084
+35e-05
+progress elapsed_ms=490485 lines_seen=246 oscillators=1900 observations=18614 contrastive_updates=24814 mean_loss=5.917
+62e-05
+progress elapsed_ms=551065 lines_seen=273 oscillators=2000 observations=20606 contrastive_updates=27470 mean_loss=7.769
+57e-05
+elapsed_ms=600449
+epochs_completed=1
+lines_seen=294
+lines_per_second=0.489634
+oscillators_after=2095
+observations_after=22264
+contrastive_updates_after=29682
+mean_loss_after=4.51432e-05
+after_prompt_1=Once upon a time
+after_output_1=eventually persistent afternoon librarian enjoying something special grabbed paintbrush beautiful landscape carefully together picked about history Suddenly helicopter caterpillar adventure surprised favorite everywhere triangle
+after_prompt_2=The little robot
+after_output_2=persistent afternoon librarian actually enjoying eventually beautiful landscape carefully together Suddenly picked about history caterpillar adventure helicopter something special grabbed strange passport listened surprised
+after_prompt_3=A safe assistant
+after_output_3=persistent afternoon eventually dinosaur librarian beautiful landscape carefully something special grabbed together picked about history Suddenly caterpillar helicopter surprised butterfly adventure favorite triangle thought
+after_prompt_4=The child learned
+after_output_4=insisting persistent afternoon librarian eventually beautiful landscape carefully adjusted something strange listened special grabbed paintbrush caterpillar together picked about history Suddenly helicopter adventure favorite
+after_prompt_5=Open intelligence
+after_output_5=eventually persistent librarian afternoon enjoying beautiful landscape carefully adjusted something special grabbed strange listened together caterpillar picked about history Suddenly adventure helicopter surprised butterfly
+dzeta_train_smoke_end

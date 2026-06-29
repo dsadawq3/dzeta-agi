@@ -1,0 +1,62 @@
+dzeta_train_smoke_begin
+corpus_path=benchmarks\data\tinystories_sample.txt
+corpus_lines=1000
+oscillators_limit=65536
+dimensions=9000
+seconds_budget=500
+progress_seconds=60
+tokens_per_prompt=24
+seed=60860
+generation_temperature=1
+learning_rate=1
+observations_initial=0
+contrastive_updates_initial=0
+mean_loss_initial=0
+before_prompt_1=Once upon a time
+before_output_1=
+before_prompt_2=The little robot
+before_output_2=
+before_prompt_3=A safe assistant
+before_output_3=
+before_prompt_4=The child learned
+before_output_4=
+before_prompt_5=Open intelligence
+before_output_5=
+.\dzeta_train_smoke.exe : progress elapsed_ms=60158 lines_seen=4 oscillators=142 observations=322 contrastive_updates=4
+26 mean_loss=3.88799e-05
+строка:1 знак:1
++ .\dzeta_train_smoke.exe --corpus benchmarks\data\tinystories_sample.t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (progress elapse...oss=3.88799e-05:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+progress elapsed_ms=129252 lines_seen=8 oscillators=226 observations=709 contrastive_updates=942 mean_loss=4.27275e-05
+progress elapsed_ms=194432 lines_seen=12 oscillators=286 observations=1060 contrastive_updates=1410 mean_loss=2.22441e-
+05
+progress elapsed_ms=263289 lines_seen=16 oscillators=344 observations=1397 contrastive_updates=1858 mean_loss=2.56902e-
+05
+progress elapsed_ms=324877 lines_seen=20 oscillators=387 observations=1707 contrastive_updates=2274 mean_loss=1.93689e-
+05
+progress elapsed_ms=393508 lines_seen=24 oscillators=430 observations=2044 contrastive_updates=2722 mean_loss=3.01725e-
+05
+progress elapsed_ms=457263 lines_seen=28 oscillators=471 observations=2369 contrastive_updates=3154 mean_loss=1.86568e-
+05
+elapsed_ms=508654
+epochs_completed=1
+lines_seen=31
+lines_per_second=0.0609452
+oscillators_after=497
+observations_after=2614
+contrastive_updates_after=3482
+mean_loss_after=1.72563e-05
+after_prompt_1=Once upon a time
+after_output_1=pretend queen Dependable friends thought of vegetables remembered everywhere house cherry started together they stopped little mouse friend Sam standing named Timmy found needle
+after_prompt_2=The little robot
+after_output_2=classroom mysterious friends friend standing Dependable thought remembered together little mouse named Fluffy found needle everywhere house birdcage mushroom cherry small started running as
+after_prompt_3=A safe assistant
+after_output_3=pretend together they shared friends forever Dependable everywhere thought remembered house little cherry started named Fluffy found pencil friend standing mysterious mushroom because always
+after_prompt_4=The child learned
+after_output_4=watched wanted friends forever thought remembered Dependable together everywhere house friend Sam standing little girl cherry started named Fluffy found pencil in her smiled
+after_prompt_5=Open intelligence
+after_output_5=pretend monster friends forever Dependable thought remembered together everywhere house birdcage little named Tim cherry small started running friend Sam mushroom mysterious because always
+dzeta_train_smoke_end

@@ -1,0 +1,49 @@
+dzeta_train_smoke_begin
+corpus_path=benchmarks\data\tinystories_sample.txt
+corpus_lines=1000
+oscillators_limit=65536
+dimensions=100000
+seconds_budget=500
+progress_seconds=60
+tokens_per_prompt=24
+seed=60860
+generation_temperature=1
+learning_rate=1
+observations_initial=0
+contrastive_updates_initial=0
+mean_loss_initial=0
+before_prompt_1=Once upon a time
+before_output_1=
+before_prompt_2=The little robot
+before_output_2=
+before_prompt_3=A safe assistant
+before_output_3=
+before_prompt_4=The child learned
+before_output_4=
+before_prompt_5=Open intelligence
+before_output_5=
+.\dzeta_train_smoke.exe : progress elapsed_ms=129587 lines_seen=1 oscillators=42 observations=66 contrastive_updates=86
+ mean_loss=7.00689e-06
+строка:1 знак:1
++ .\dzeta_train_smoke.exe --corpus benchmarks\data\tinystories_sample.t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (progress elapse...oss=7.00689e-06:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+progress elapsed_ms=326673 lines_seen=2 oscillators=90 observations=164 contrastive_updates=214 mean_loss=5.53963e-06
+progress elapsed_ms=478819 lines_seen=3 oscillators=120 observations=238 contrastive_updates=314 mean_loss=4.69543e-06
+progress elapsed_ms=642272 lines_seen=4 oscillators=142 observations=322 contrastive_updates=426 mean_loss=3.53216e-06
+elapsed_ms=642272
+epochs_completed=1
+lines_seen=4
+lines_per_second=0.00622789
+oscillators_after=142
+observations_after=322
+contrastive_updates_after=426
+mean_loss_after=3.53216e-06
+after_prompt_1=Once upon a time
+after_output_1=remembered there cherry envious trees "..." because wanted the leaves falling better little wind started thought and strong driving small friends asked was swimming
+after_prompt_2=The little robot
+after_output_2=swimming cherry envious small tickle because wanted the better thought little wind started "..." leaves laughed beeped falling and said Together they shared play
+after_prompt_3=A safe assistant
+after_output_3=

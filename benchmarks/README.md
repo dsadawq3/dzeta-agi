@@ -139,3 +139,22 @@ g++ -std=c++20 -O3 -march=native -Wall -Wextra -pedantic \
 ```
 
 The inspector is read-only. It reports strong tokens plus link scores split into next-state, shared-context, transition, and p-adic components so runs can be compared without retraining.
+
+## Recorded High-Dimensional Runs
+
+Selected raw logs are committed when they are small enough to review:
+
+```text
+2026-06-29-dim9000-stochastic-10min-safe.out.txt
+2026-06-29-dim9000-stochastic-10min-safe.err.txt
+2026-06-29-dim9000-stochastic-inspect.txt
+2026-06-29-dim9000-stochastic-inspect-content.txt
+test_dim992_extreme.log
+test_dim2000_extreme.log
+test_dim9000_extreme.log
+test_dim100000_extreme.log
+```
+
+The 2026-06-29 dim9000 stochastic run processed 144 TinyStories lines in 603.498 seconds with 1530 active oscillators, 8824 observations, 11762 contrastive updates, and mean loss `2.21069e-05`. Its saved model was 4.295 GiB, so the binary is kept outside git. The model is large because the faithful dump stores multiple `complex<long double>` and `long double` vectors per oscillator plus context prototypes; it is not a compact inference artifact.
+
+See `docs/experiments/2026-06-29-dim9000-stochastic.md` for the interpretation and next steps.
