@@ -49,8 +49,9 @@ This was better than random text, but still too template-like.
 
 The experimental mode adds:
 
-- high-dimensional self-folding in the spectral projection;
+- high-dimensional self-folding in the response projection;
 - prompt resonance injection from learned prompt-token oscillators when available;
+- prompt-delta axes after subtracting the learned global attractor projection;
 - a learned global attractor center;
 - an anti-attractor score penalty;
 - a prompt-specificity score reward.
@@ -61,31 +62,31 @@ Example outputs:
 
 ```text
 Once upon a time
-peaceful there little caterpillar lonely blueberries something strange passport sometimes visiting creatures tickled ...
+peaceful there little misbehave everywhere blueberry determined surprise librarian loudly delayed Everywhere stronger terrible starts creatures struggle exclaimed refreshing became belonged flapped laughing realized
 
 The little robot
-neighbourhood sunshine Sometimes playground caterpillar blueberries something strange passport important elephant ...
+sunshine fish mysterious scurried stretched unhappy unpacked completely everywhere Everywhere pretends special wondering determined approached butterfly heavier enough misbehave moment stumbled bellowed breathe exclaimed
 
 A safe assistant
-Sometimes caterpillar something fragile strange passport blueberries favorite sometimes Suddenly squishy whistled ...
+flashlight tent caterpillar blanket butterfly original stretched laughing refreshing wandered slowly bellowed appeared houses twirled exclaimed terrible prettiest farewell Everywhere behaving wondering slipped completely
 
 The child learned
-neighbourhood sunshine caterpillar Sometimes something strange passport blanket blueberries sometimes stories creatures ...
+sunshine watched splashed stronger surprise refreshing determined thanked scurried realized wondering creatures pretends misbehave clapped terrible walked stretched company farewell visiting kitchen slipped librarian
 
 Open intelligence
-open Together caterpillar blueberry mermaid librarian Everywhere stumbled approached magical refreshing whistle original wondering ...
+open crying approached content everywhere visiting Everywhere stumbled selling farewell exclaimed blanket laughing original continued pretends asleep behaving completely tightly delayed blueberry unpacked refreshing
 ```
 
 ## Interpretation
 
-The global TinyStories center is still visible, especially through `caterpillar` and `blueberries`. The barrier is not fully solved.
+The global TinyStories style is still visible. The barrier is not fully solved.
 
 However, this run no longer looks like a direct permutation of one response. Prompt neighborhoods separate more clearly:
 
-- `Open intelligence` routes into `open`, `Together`, `magical`, `original`, `wondering`.
-- `The child learned` routes into `stories`, `librarian`, `creatures`.
-- `A safe assistant` routes into `fragile`, `reached`, `thanked`, `determined` in nearby short runs.
-- `The little robot` routes into place/object/action language rather than exactly copying the baseline story center.
+- `Open intelligence` keeps `open` and routes into `content`, `visiting`, `selling`, `original`.
+- `The child learned` routes into `watched`, `splashed`, `thanked`, `company`, `librarian`.
+- `A safe assistant` routes into `flashlight`, `tent`, `blanket`, `original`, `wandering`.
+- `The little robot` routes into `fish`, `mysterious`, `scurried`, `stretched`, `unpacked`.
 
 The result supports keeping the mechanism as an experimental flag while running broader multi-seed tests on a more diverse corpus.
 

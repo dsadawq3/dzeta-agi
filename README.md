@@ -44,27 +44,28 @@ Recent work added three non-Transformer mechanisms to attack that failure mode:
 
 - **resonance subword traces**: words keep their visible token, but also leave hidden subword resonance pieces such as suffix/prefix traces;
 - **dimensional interference**: an experimental high-dimensional self-folding step where distant spectral coordinates interfere with each other instead of remaining independent;
-- **anti-attractor routing**: generation now computes a learned global attractor center and penalizes candidates that are too close to that center while rewarding candidates that are more prompt-specific.
+- **anti-attractor routing**: generation computes a learned global attractor center and penalizes candidates that are too close to that center while rewarding candidates that are more prompt-specific;
+- **prompt-delta axes**: the prompt is split into several spectral axes, the global attractor projection is removed, and the remaining differential component is kept alive during generation.
 
 These are not hand-written text templates. No prompt-specific answer lists are encoded. The routing is computed from learned oscillator vectors, p-adic signatures, frequency pressure, and spectral similarity.
 
-The result is not a solved generation system, but it crosses a first practical barrier: the model no longer only evolves the same global template. In a fixed-seed 9000-dimensional 60-line run, the baseline stayed near one shared `flashlight / caterpillar / blueberries / friends` center. With dimensional interference enabled, outputs still share corpus style, but different prompts route into visibly different neighborhoods:
+The result is not a solved generation system, but it crosses a first practical barrier: the model no longer only evolves the same global template. In a fixed-seed 9000-dimensional 60-line run, the baseline stayed near one shared `flashlight / caterpillar / blueberries / friends` center. With dimensional interference enabled, outputs still share corpus style, but different prompts route into visibly different local trajectories:
 
 ```text
 Once upon a time
-peaceful there little caterpillar lonely blueberries something strange passport sometimes visiting creatures tickled ...
+peaceful there little misbehave everywhere blueberry determined surprise librarian loudly delayed ...
 
 The little robot
-neighbourhood sunshine Sometimes playground caterpillar blueberries something strange passport important elephant ...
+sunshine fish mysterious scurried stretched unhappy unpacked completely everywhere ...
 
 A safe assistant
-Sometimes caterpillar something fragile strange passport blueberries favorite sometimes Suddenly squishy whistled ...
+flashlight tent caterpillar blanket butterfly original stretched laughing refreshing wandered ...
 
 The child learned
-neighbourhood sunshine caterpillar Sometimes something strange passport blanket blueberries sometimes stories creatures ...
+sunshine watched splashed stronger surprise refreshing determined thanked scurried realized ...
 
 Open intelligence
-open Together caterpillar blueberry mermaid librarian Everywhere stumbled approached magical refreshing whistle original wondering ...
+open crying approached content everywhere visiting Everywhere stumbled selling farewell exclaimed ...
 ```
 
 This is still a small TinyStories experiment. It is not proof of understanding. But it is stronger than random word spikes and stronger than the earlier one-template collapse.
@@ -110,6 +111,8 @@ That failure is useful. It identified the next real problem: not "make loss lowe
 ### Anti-template routing run
 
 The current experimental `--dim-interference` mode targets that exact problem. It does not add textual templates. It adds a geometric penalty against the learned corpus center and a reward for candidates that are closer to the prompt field than to the global attractor.
+
+The current implementation keeps online training in the stable base projection and applies dimensional interference during generation/routing. That makes the experiment safer: the saved model is still learned with the same oscillator update rules, while the response path uses prompt-delta axes to resist collapse into the dominant genre center.
 
 The result is a partial but meaningful step: prompt outputs are more differentiated while preserving the same compact field architecture.
 
