@@ -7,21 +7,32 @@
 
 #include <algorithm>
 #include <cfenv>
+#include <chrono>
 #include <cmath>
 #include <complex>
 #include <cstdlib>
 #include <ctime>
 #include <cstddef>
 #include <cstdint>
+#include <fstream>
+#include <istream>
 #include <limits>
 #include <numeric>
+#include <ostream>
 #include <random>
 #include <set>
+#include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
+
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
+#include <immintrin.h>
+#endif
 
 namespace dzeta {
 
@@ -37,6 +48,24 @@ inline long double padic_norm(long double x, std::uint32_t p) {
 
 class OscillatorField {
 public:
+    struct TokenSummary {
+        std::string token;
+        std::size_t observations = 0;
+        std::size_t prototypes = 0;
+        long double strength = 0.0L;
+        long double error_ema = 0.0L;
+    };
+
+    struct TokenLink {
+        std::string token;
+        std::size_t observations = 0;
+        long double association_score = 0.0L;
+        long double next_similarity = 0.0L;
+        long double context_similarity = 0.0L;
+        long double transition_similarity = 0.0L;
+        long double padic_similarity = 0.0L;
+    };
+
     explicit OscillatorField(std::size_t max_osc = 4096,
                              std::size_t dim = 192,
                              std::uint64_t seed = 0)
@@ -45,15 +74,7 @@ public:
           thread_count_(default_thread_count()),
           parallel_min_dimensions_(default_parallel_min_dimensions()),
           rng_(seed == 0 ? entropy_seed() : seed) {
-        steps_.resize(dim_);
-        std::size_t nz = zeta_zero_count();
-        zeta_basis_.resize(dim_);
-        for (std::size_t z = 0; z < dim_; ++z) {
-            if (z < 64) steps_[z] = 1;           // zeros 0-63, fine
-            else if (z < 128) steps_[z] = 4;     // zeros 64-127, every 4th
-            else steps_[z] = nz / dim_;           // rest
-            zeta_basis_[z] = zeta_zero((z * steps_[z]) % nz);
-        }
+        initialize_spectral_basis();
         initialize_seed_projection(64);
     }
 
@@ -132,6 +153,21 @@ public:
 
             normalize_complex(context_projection.ampl);
             normalize_complex(full_projection.ampl);
+            if (update_probability_ < 1.0L && random_unit() > update_probability_) {
+                push_context_token(context_tokens, tokens[ti]);
+                if (context_string(context_tokens) == full_projection.text) {
+                    cached_next = std::move(full_projection);
+                } else {
+                    cached_next = {};
+                }
+                continue;
+            }
+            if (update_noise_ > 0.0L) {
+                add_complex_noise(context_projection.ampl, update_noise_);
+                add_complex_noise(full_projection.ampl, update_noise_);
+                add_real_noise(context_projection.padic, update_noise_);
+                add_real_noise(full_projection.padic, update_noise_);
+            }
             auto transition = spectral_bridge(context_projection.ampl, full_projection.ampl);
             update_oscillator(oscs_[positive_index],
                               context_projection.ampl,
@@ -358,6 +394,79 @@ public:
     std::size_t observation_count() const noexcept { return total_observations_; }
     std::size_t contrastive_update_count() const noexcept { return contrastive_updates_; }
     long double mean_loss() const noexcept { return loss_updates_ == 0 ? 0.0L : loss_ema_; }
+    std::size_t dimensions() const noexcept { return dim_; }
+    std::size_t oscillator_limit() const noexcept { return max_osc_; }
+
+    std::vector<TokenSummary> token_summaries(std::size_t limit = 0) const {
+        std::vector<TokenSummary> summaries;
+        summaries.reserve(oscs_.size());
+        for (const auto& oscillator : oscs_) {
+            summaries.push_back({oscillator.token,
+                                 oscillator.observations,
+                                 oscillator.prototypes.size(),
+                                 oscillator.strength,
+                                 oscillator.error_ema});
+        }
+        std::sort(summaries.begin(), summaries.end(), [](const auto& left, const auto& right) {
+            const long double left_rank = left.strength * std::log1p(static_cast<long double>(left.observations));
+            const long double right_rank = right.strength * std::log1p(static_cast<long double>(right.observations));
+            if (left_rank == right_rank) {
+                return left.token < right.token;
+            }
+            return left_rank > right_rank;
+        });
+        if (limit != 0 && summaries.size() > limit) {
+            summaries.resize(limit);
+        }
+        return summaries;
+    }
+
+    std::vector<TokenLink> nearest_token_links(std::string_view token, std::size_t limit = 16) const {
+        const auto found = token_index_.find(std::string(token));
+        if (found == token_index_.end()) {
+            return {};
+        }
+        const auto& anchor = oscs_[found->second];
+        std::vector<TokenLink> links;
+        links.reserve(oscs_.size());
+        for (std::size_t i = 0; i < oscs_.size(); ++i) {
+            if (i == found->second) {
+                continue;
+            }
+            const auto& candidate = oscs_[i];
+            const long double next_similarity = complex_similarity(anchor.query, candidate.key);
+            const long double context_similarity = complex_similarity(anchor.key, candidate.key);
+            const long double transition_similarity = complex_similarity(anchor.transition, candidate.transition);
+            const long double padic_similarity =
+                0.5L + 0.5L * cosine(anchor.query_padic_signature, candidate.padic_signature);
+            const long double reliability = 0.65L + 0.35L * std::clamp(candidate.strength / 4.0L, 0.0L, 1.0L);
+            const long double association_score =
+                reliability *
+                (0.45L * next_similarity +
+                 0.25L * context_similarity +
+                 0.20L * transition_similarity +
+                 0.10L * padic_similarity);
+            if (association_score > 1.0e-12L) {
+                links.push_back({candidate.token,
+                                 candidate.observations,
+                                 association_score,
+                                 next_similarity,
+                                 context_similarity,
+                                 transition_similarity,
+                                 padic_similarity});
+            }
+        }
+        std::sort(links.begin(), links.end(), [](const auto& left, const auto& right) {
+            if (left.association_score == right.association_score) {
+                return left.token < right.token;
+            }
+            return left.association_score > right.association_score;
+        });
+        if (limit != 0 && links.size() > limit) {
+            links.resize(limit);
+        }
+        return links;
+    }
 
     void set_generation_temperature(long double temperature) noexcept {
         generation_temperature_ = std::clamp(temperature, 0.0L, 2.0L);
@@ -365,6 +474,18 @@ public:
 
     void set_learning_rate(long double rate) noexcept {
         learning_rate_ = std::clamp(rate, 1.0e-4L, 1.0L);
+    }
+
+    void set_update_probability(long double probability) noexcept {
+        update_probability_ = std::clamp(probability, 0.0L, 1.0L);
+    }
+
+    void set_update_noise(long double scale) noexcept {
+        update_noise_ = std::clamp(scale, 0.0L, 0.25L);
+    }
+
+    void set_random_init_scale(long double scale) noexcept {
+        random_init_scale_ = std::clamp(scale, 0.0L, 0.25L);
     }
 
     void set_thread_count(std::size_t count) noexcept {
@@ -376,6 +497,28 @@ public:
 
     void set_parallel_min_dimensions(std::size_t dimensions) noexcept {
         parallel_min_dimensions_ = std::max<std::size_t>(1, dimensions);
+    }
+
+    void save_model(std::string_view path) const {
+        std::ofstream output(std::string(path), std::ios::binary);
+        if (!output) {
+            throw std::runtime_error("cannot open model for write: " + std::string(path));
+        }
+        write_model(output);
+        if (!output) {
+            throw std::runtime_error("failed to write model: " + std::string(path));
+        }
+    }
+
+    void load_model(std::string_view path) {
+        std::ifstream input(std::string(path), std::ios::binary);
+        if (!input) {
+            throw std::runtime_error("cannot open model for read: " + std::string(path));
+        }
+        read_model(input);
+        if (!input.eof() && !input) {
+            throw std::runtime_error("failed to read model: " + std::string(path));
+        }
     }
 
 private:
@@ -407,19 +550,332 @@ private:
         std::vector<ContextPrototype> prototypes;
     };
 
+    static constexpr std::string_view model_magic() noexcept { return "DZETA_OSC_FIELD"; }
+    static constexpr std::uint32_t model_version() noexcept { return 1U; }
+    static constexpr std::size_t max_serialized_string_bytes = 64U * 1024U * 1024U;
+    static constexpr std::size_t max_serialized_vector_items = 16U * 1024U * 1024U;
+
+    template <typename T>
+    static void write_pod(std::ostream& output, const T& value) {
+        static_assert(std::is_trivially_copyable_v<T>);
+        output.write(reinterpret_cast<const char*>(&value), sizeof(T));
+    }
+
+    template <typename T>
+    static void read_pod(std::istream& input, T& value) {
+        static_assert(std::is_trivially_copyable_v<T>);
+        input.read(reinterpret_cast<char*>(&value), sizeof(T));
+    }
+
+    static void write_count(std::ostream& output, std::size_t value) {
+        const auto stored = static_cast<std::uint64_t>(value);
+        write_pod(output, stored);
+    }
+
+    static std::size_t read_count(std::istream& input, std::string_view label) {
+        std::uint64_t stored = 0;
+        read_pod(input, stored);
+        if (!input) {
+            throw std::runtime_error("truncated model count: " + std::string(label));
+        }
+        if (stored > static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
+            throw std::runtime_error("model count is too large: " + std::string(label));
+        }
+        return static_cast<std::size_t>(stored);
+    }
+
+    static void write_string(std::ostream& output, std::string_view value) {
+        write_count(output, value.size());
+        output.write(value.data(), static_cast<std::streamsize>(value.size()));
+    }
+
+    static void read_string(std::istream& input, std::string& value, std::string_view label) {
+        const std::size_t size = read_count(input, label);
+        if (size > max_serialized_string_bytes) {
+            throw std::runtime_error("model string is too large: " + std::string(label));
+        }
+        value.resize(size);
+        input.read(value.data(), static_cast<std::streamsize>(size));
+        if (!input) {
+            throw std::runtime_error("truncated model string: " + std::string(label));
+        }
+    }
+
+    template <typename T>
+    static void write_scalar_vector(std::ostream& output, const std::vector<T>& values) {
+        write_count(output, values.size());
+        for (const auto& value : values) {
+            write_pod(output, value);
+        }
+    }
+
+    template <typename T>
+    static void read_scalar_vector(std::istream& input,
+                                   std::vector<T>& values,
+                                   std::string_view label) {
+        const std::size_t size = read_count(input, label);
+        if (size > max_serialized_vector_items) {
+            throw std::runtime_error("model vector is too large: " + std::string(label));
+        }
+        values.resize(size);
+        for (auto& value : values) {
+            read_pod(input, value);
+        }
+        if (!input) {
+            throw std::runtime_error("truncated model vector: " + std::string(label));
+        }
+    }
+
+    static void write_complex_vector(std::ostream& output, const std::vector<cx>& values) {
+        write_count(output, values.size());
+        for (const auto& value : values) {
+            const long double real = value.real();
+            const long double imag = value.imag();
+            write_pod(output, real);
+            write_pod(output, imag);
+        }
+    }
+
+    static void read_complex_vector(std::istream& input,
+                                    std::vector<cx>& values,
+                                    std::string_view label) {
+        const std::size_t size = read_count(input, label);
+        if (size > max_serialized_vector_items) {
+            throw std::runtime_error("model complex vector is too large: " + std::string(label));
+        }
+        values.resize(size);
+        for (auto& value : values) {
+            long double real = 0.0L;
+            long double imag = 0.0L;
+            read_pod(input, real);
+            read_pod(input, imag);
+            value = cx(real, imag);
+        }
+        if (!input) {
+            throw std::runtime_error("truncated model complex vector: " + std::string(label));
+        }
+    }
+
+    static void require_dimension(std::size_t size, std::size_t expected, std::string_view label) {
+        if (size != expected) {
+            throw std::runtime_error("model dimension mismatch in " + std::string(label));
+        }
+    }
+
+    static void write_context_prototype(std::ostream& output, const ContextPrototype& prototype) {
+        write_complex_vector(output, prototype.key);
+        write_complex_vector(output, prototype.query);
+        write_complex_vector(output, prototype.transition);
+        write_scalar_vector(output, prototype.padic_signature);
+        write_scalar_vector(output, prototype.query_padic_signature);
+        write_complex_vector(output, prototype.negative_key);
+        write_scalar_vector(output, prototype.negative_padic_signature);
+        write_scalar_vector(output, prototype.context_tail);
+        write_pod(output, prototype.error_ema);
+        write_count(output, prototype.observations);
+    }
+
+    ContextPrototype read_context_prototype(std::istream& input) const {
+        ContextPrototype prototype;
+        read_complex_vector(input, prototype.key, "prototype.key");
+        read_complex_vector(input, prototype.query, "prototype.query");
+        read_complex_vector(input, prototype.transition, "prototype.transition");
+        read_scalar_vector(input, prototype.padic_signature, "prototype.padic_signature");
+        read_scalar_vector(input, prototype.query_padic_signature, "prototype.query_padic_signature");
+        read_complex_vector(input, prototype.negative_key, "prototype.negative_key");
+        read_scalar_vector(input, prototype.negative_padic_signature, "prototype.negative_padic_signature");
+        read_scalar_vector(input, prototype.context_tail, "prototype.context_tail");
+        read_pod(input, prototype.error_ema);
+        prototype.observations = read_count(input, "prototype.observations");
+        require_dimension(prototype.key.size(), dim_, "prototype.key");
+        require_dimension(prototype.query.size(), dim_, "prototype.query");
+        require_dimension(prototype.transition.size(), dim_, "prototype.transition");
+        require_dimension(prototype.padic_signature.size(), dim_, "prototype.padic_signature");
+        require_dimension(prototype.query_padic_signature.size(), dim_, "prototype.query_padic_signature");
+        require_dimension(prototype.negative_key.size(), dim_, "prototype.negative_key");
+        require_dimension(prototype.negative_padic_signature.size(), dim_, "prototype.negative_padic_signature");
+        return prototype;
+    }
+
+    static void write_token_oscillator(std::ostream& output, const TokenOscillator& oscillator) {
+        write_string(output, oscillator.token);
+        write_complex_vector(output, oscillator.query);
+        write_complex_vector(output, oscillator.key);
+        write_complex_vector(output, oscillator.transition);
+        write_scalar_vector(output, oscillator.padic_signature);
+        write_scalar_vector(output, oscillator.query_padic_signature);
+        write_complex_vector(output, oscillator.negative_key);
+        write_scalar_vector(output, oscillator.negative_padic_signature);
+        write_pod(output, oscillator.strength);
+        write_pod(output, oscillator.error_ema);
+        write_count(output, oscillator.observations);
+        write_count(output, oscillator.prototypes.size());
+        for (const auto& prototype : oscillator.prototypes) {
+            write_context_prototype(output, prototype);
+        }
+    }
+
+    TokenOscillator read_token_oscillator(std::istream& input) const {
+        TokenOscillator oscillator;
+        read_string(input, oscillator.token, "oscillator.token");
+        read_complex_vector(input, oscillator.query, "oscillator.query");
+        read_complex_vector(input, oscillator.key, "oscillator.key");
+        read_complex_vector(input, oscillator.transition, "oscillator.transition");
+        read_scalar_vector(input, oscillator.padic_signature, "oscillator.padic_signature");
+        read_scalar_vector(input, oscillator.query_padic_signature, "oscillator.query_padic_signature");
+        read_complex_vector(input, oscillator.negative_key, "oscillator.negative_key");
+        read_scalar_vector(input, oscillator.negative_padic_signature, "oscillator.negative_padic_signature");
+        read_pod(input, oscillator.strength);
+        read_pod(input, oscillator.error_ema);
+        oscillator.observations = read_count(input, "oscillator.observations");
+        const std::size_t prototype_count = read_count(input, "oscillator.prototypes");
+        if (prototype_count > 1024U) {
+            throw std::runtime_error("model has too many prototypes for token: " + oscillator.token);
+        }
+        oscillator.prototypes.reserve(prototype_count);
+        for (std::size_t i = 0; i < prototype_count; ++i) {
+            oscillator.prototypes.push_back(read_context_prototype(input));
+        }
+        require_dimension(oscillator.query.size(), dim_, "oscillator.query");
+        require_dimension(oscillator.key.size(), dim_, "oscillator.key");
+        require_dimension(oscillator.transition.size(), dim_, "oscillator.transition");
+        require_dimension(oscillator.padic_signature.size(), dim_, "oscillator.padic_signature");
+        require_dimension(oscillator.query_padic_signature.size(), dim_, "oscillator.query_padic_signature");
+        require_dimension(oscillator.negative_key.size(), dim_, "oscillator.negative_key");
+        require_dimension(oscillator.negative_padic_signature.size(), dim_, "oscillator.negative_padic_signature");
+        return oscillator;
+    }
+
+    void write_model(std::ostream& output) const {
+        write_string(output, model_magic());
+        write_pod(output, model_version());
+        write_count(output, max_osc_);
+        write_count(output, dim_);
+        write_count(output, thread_count_);
+        write_count(output, parallel_min_dimensions_);
+        write_pod(output, learning_rate_);
+        write_pod(output, generation_temperature_);
+        write_pod(output, contrastive_rate_);
+        write_pod(output, contrastive_margin_);
+        write_pod(output, contrastive_strength_);
+        write_pod(output, update_probability_);
+        write_pod(output, update_noise_);
+        write_pod(output, random_init_scale_);
+        write_count(output, max_prototypes_per_token_);
+        write_count(output, max_hard_negatives_);
+        write_count(output, max_context_tokens_);
+        write_count(output, contrastive_period_);
+        write_count(output, total_observations_);
+        write_count(output, contrastive_updates_);
+        write_count(output, loss_updates_);
+        write_pod(output, loss_ema_);
+
+        std::ostringstream rng_state;
+        rng_state << rng_;
+        write_string(output, rng_state.str());
+
+        write_count(output, oscs_.size());
+        for (const auto& oscillator : oscs_) {
+            write_token_oscillator(output, oscillator);
+        }
+    }
+
+    void read_model(std::istream& input) {
+        std::string magic;
+        read_string(input, magic, "model.magic");
+        std::uint32_t version = 0;
+        read_pod(input, version);
+        if (magic != model_magic()) {
+            throw std::runtime_error("not a dzeta oscillator model");
+        }
+        if (version != model_version()) {
+            throw std::runtime_error("unsupported dzeta oscillator model version");
+        }
+
+        max_osc_ = std::max<std::size_t>(128, read_count(input, "max_osc"));
+        dim_ = std::max<std::size_t>(16, read_count(input, "dimensions"));
+        thread_count_ = std::max<std::size_t>(1, read_count(input, "thread_count"));
+        parallel_min_dimensions_ = std::max<std::size_t>(1, read_count(input, "parallel_min_dimensions"));
+        read_pod(input, learning_rate_);
+        read_pod(input, generation_temperature_);
+        read_pod(input, contrastive_rate_);
+        read_pod(input, contrastive_margin_);
+        read_pod(input, contrastive_strength_);
+        read_pod(input, update_probability_);
+        read_pod(input, update_noise_);
+        read_pod(input, random_init_scale_);
+        max_prototypes_per_token_ = std::max<std::size_t>(1, read_count(input, "max_prototypes_per_token"));
+        max_hard_negatives_ = std::max<std::size_t>(1, read_count(input, "max_hard_negatives"));
+        max_context_tokens_ = std::max<std::size_t>(1, read_count(input, "max_context_tokens"));
+        contrastive_period_ = std::max<std::size_t>(1, read_count(input, "contrastive_period"));
+        total_observations_ = read_count(input, "total_observations");
+        contrastive_updates_ = read_count(input, "contrastive_updates");
+        loss_updates_ = read_count(input, "loss_updates");
+        read_pod(input, loss_ema_);
+
+        std::string rng_state;
+        read_string(input, rng_state, "rng_state");
+        std::istringstream rng_input(rng_state);
+        rng_input >> rng_;
+        if (!rng_input) {
+            rng_.seed(entropy_seed());
+        }
+
+        initialize_spectral_basis();
+        initialize_seed_projection(64);
+        fp_cx_.clear();
+
+        const std::size_t oscillator_count = read_count(input, "oscillators");
+        if (oscillator_count > max_osc_) {
+            max_osc_ = oscillator_count;
+        }
+        oscs_.clear();
+        token_index_.clear();
+        oscs_.reserve(oscillator_count);
+        for (std::size_t i = 0; i < oscillator_count; ++i) {
+            auto oscillator = read_token_oscillator(input);
+            if (oscillator.token.empty()) {
+                throw std::runtime_error("model contains an empty token");
+            }
+            if (token_index_.find(oscillator.token) != token_index_.end()) {
+                throw std::runtime_error("model contains a duplicate token: " + oscillator.token);
+            }
+            token_index_[oscillator.token] = oscs_.size();
+            oscs_.push_back(std::move(oscillator));
+        }
+    }
+
     TokenOscillator make_token_oscillator(std::string token) const {
-        return {std::move(token),
-                std::vector<cx>(dim_, cx(0, 0)),
-                std::vector<cx>(dim_, cx(0, 0)),
-                std::vector<cx>(dim_, cx(1, 0)),
-                std::vector<long double>(dim_, 0.0L),
-                std::vector<long double>(dim_, 0.0L),
-                std::vector<cx>(dim_, cx(0, 0)),
-                std::vector<long double>(dim_, 0.0L),
-                1.0L,
-                1.0L,
-                0,
-                {}};
+        TokenOscillator oscillator{std::move(token),
+                                   std::vector<cx>(dim_, cx(0, 0)),
+                                   std::vector<cx>(dim_, cx(0, 0)),
+                                   std::vector<cx>(dim_, cx(1, 0)),
+                                   std::vector<long double>(dim_, 0.0L),
+                                   std::vector<long double>(dim_, 0.0L),
+                                   std::vector<cx>(dim_, cx(0, 0)),
+                                   std::vector<long double>(dim_, 0.0L),
+                                   1.0L,
+                                   1.0L,
+                                   0,
+                                   {}};
+        if (random_init_scale_ > 0.0L) {
+            add_complex_noise(oscillator.key, random_init_scale_);
+            add_complex_noise(oscillator.query, random_init_scale_);
+            add_complex_noise(oscillator.transition, random_init_scale_);
+        }
+        return oscillator;
+    }
+
+    void initialize_spectral_basis() {
+        steps_.resize(dim_);
+        const std::size_t nz = zeta_zero_count();
+        zeta_basis_.resize(dim_);
+        for (std::size_t z = 0; z < dim_; ++z) {
+            if (z < 64) steps_[z] = 1;
+            else if (z < 128) steps_[z] = 4;
+            else steps_[z] = std::max<std::size_t>(1, nz / dim_);
+            zeta_basis_[z] = zeta_zero((z * steps_[z]) % nz);
+        }
     }
 
     void initialize_seed_projection(std::size_t count) {
@@ -455,11 +911,49 @@ private:
         return context;
     }
 
+    static bool hardware_random64(std::uint64_t& value) noexcept {
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__x86_64__)
+        return rdrand64_gcc(value);
+#elif defined(_MSC_VER) && defined(_M_X64)
+        unsigned __int64 generated = 0;
+        for (int attempt = 0; attempt < 8; ++attempt) {
+            if (_rdrand64_step(&generated) != 0) {
+                value = static_cast<std::uint64_t>(generated);
+                return true;
+            }
+        }
+        return false;
+#else
+        (void)value;
+        return false;
+#endif
+    }
+
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__x86_64__)
+    __attribute__((target("rdrnd"))) static bool rdrand64_gcc(std::uint64_t& value) noexcept {
+        unsigned long long generated = 0;
+        for (int attempt = 0; attempt < 8; ++attempt) {
+            if (_rdrand64_step(&generated) != 0) {
+                value = static_cast<std::uint64_t>(generated);
+                return true;
+            }
+        }
+        return false;
+    }
+#endif
+
     static std::uint64_t entropy_seed() {
         std::random_device rd;
         const auto now = static_cast<std::uint64_t>(std::time(nullptr));
-        return (static_cast<std::uint64_t>(rd()) << 32U) ^ static_cast<std::uint64_t>(rd()) ^
-               (now * 0x9e3779b97f4a7c15ULL);
+        const auto tick =
+            static_cast<std::uint64_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+        std::uint64_t hardware = 0;
+        (void)hardware_random64(hardware);
+        return hardware ^
+               (static_cast<std::uint64_t>(rd()) << 32U) ^
+               static_cast<std::uint64_t>(rd()) ^
+               (now * 0x9e3779b97f4a7c15ULL) ^
+               (tick * 0xbf58476d1ce4e5b9ULL);
     }
 
     static std::size_t env_size_or(const char* name, std::size_t fallback) noexcept {
@@ -815,6 +1309,26 @@ private:
         return 2.0L * random_unit() - 1.0L;
     }
 
+    void add_complex_noise(std::vector<cx>& values, long double scale) const {
+        if (scale <= 0.0L) {
+            return;
+        }
+        for (auto& value : values) {
+            value += cx(scale * centered_noise(), scale * centered_noise());
+        }
+        normalize_complex(values);
+    }
+
+    void add_real_noise(std::vector<long double>& values, long double scale) const {
+        if (scale <= 0.0L) {
+            return;
+        }
+        for (auto& value : values) {
+            value += scale * centered_noise();
+        }
+        normalize_real(values);
+    }
+
     void update_oscillator(TokenOscillator& oscillator,
                            const std::vector<cx>& target_key,
                            const std::vector<cx>& target_query,
@@ -1058,6 +1572,9 @@ private:
     long double contrastive_rate_ = 0.08L;
     long double contrastive_margin_ = 0.62L;
     long double contrastive_strength_ = 0.74L;
+    long double update_probability_ = 1.0L;
+    long double update_noise_ = 0.0L;
+    long double random_init_scale_ = 0.0L;
     std::size_t max_prototypes_per_token_ = 4;
     std::size_t max_hard_negatives_ = 4;
     std::size_t max_context_tokens_ = 24;

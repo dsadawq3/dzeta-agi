@@ -36,5 +36,16 @@ add_executable(dzeta_parallel tests/parallel.cpp)
 target_link_libraries(dzeta_parallel PRIVATE dzeta_core)
 add_test(NAME dzeta_parallel COMMAND dzeta_parallel)
 
+add_executable(dzeta_persistence tests/persistence.cpp)
+target_link_libraries(dzeta_persistence PRIVATE dzeta_core)
+add_test(NAME dzeta_persistence COMMAND dzeta_persistence)
+
+add_executable(dzeta_stochastic tests/stochastic.cpp)
+target_link_libraries(dzeta_stochastic PRIVATE dzeta_core)
+add_test(NAME dzeta_stochastic COMMAND dzeta_stochastic)
+
 add_executable(dzeta_train_smoke benchmarks/train_smoke.cpp)
 target_link_libraries(dzeta_train_smoke PRIVATE dzeta_core)
+
+add_executable(dzeta_inspect_model benchmarks/inspect_model.cpp)
+target_link_libraries(dzeta_inspect_model PRIVATE dzeta_core)

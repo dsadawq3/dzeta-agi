@@ -63,6 +63,30 @@ Run a 10-minute training smoke:
   --progress-seconds 30
 ```
 
+Run a stochastic, saved high-dimensional experiment:
+
+```bash
+./dzeta_train_smoke_native \
+  --corpus benchmarks/data/tinystories_sample.txt \
+  --seconds 600 \
+  --oscillators 65536 \
+  --dimensions 9000 \
+  --tokens 24 \
+  --temperature 1.0 \
+  --learning-rate 1.0 \
+  --threads 20 \
+  --parallel-min-dim 1 \
+  --shuffle-lines \
+  --update-probability 0.8 \
+  --update-noise 0.001 \
+  --random-init-scale 0.001 \
+  --save-model benchmarks/models/dim9000_20threads_stochastic.dzeta.bin \
+  --autosave-seconds 300 \
+  --progress-seconds 60
+```
+
+When `--seed` is omitted, the field seeds itself from entropy and tries to mix CPU RDRAND where the compiler and hardware expose it. The stochastic flags are intentionally explicit so deterministic tests and baseline runs keep their old behavior.
+
 On Windows PowerShell:
 
 ```powershell
@@ -90,3 +114,28 @@ Threading notes:
 - `--threads N` fixes the field-level worker count.
 - `--parallel-min-dim N` controls when dimension-range parallelism starts.
 - On long-double spectral runs, more logical CPUs do not always scale linearly; 8-12 threads may be close to the useful limit on some CPUs.
+
+Persistence notes:
+
+- `--save-model PATH` writes the learned oscillator field to disk after the run.
+- `--load-model PATH` resumes from a saved oscillator field before applying runtime CLI settings.
+- `--autosave-seconds N` periodically rewrites the save path during long runs.
+- Saved models live under `benchmarks/models/` by convention and are ignored by git because high-dimensional fields can be very large.
+
+Inspect a saved model:
+
+```bash
+g++ -std=c++20 -O3 -march=native -Wall -Wextra -pedantic \
+  -I src -I src/dzeta \
+  benchmarks/inspect_model.cpp \
+  -o dzeta_inspect_model
+
+./dzeta_inspect_model \
+  --model benchmarks/models/dim9000_20threads_stochastic.dzeta.bin \
+  --top 20 \
+  --token child \
+  --token forest \
+  --prompt "The little robot"
+```
+
+The inspector is read-only. It reports strong tokens plus link scores split into next-state, shared-context, transition, and p-adic components so runs can be compared without retraining.

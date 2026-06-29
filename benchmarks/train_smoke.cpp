@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -22,12 +23,19 @@ struct Options {
     std::size_t max_lines = 0;
     std::size_t max_line_chars = 512;
     std::size_t progress_seconds = 30;
+    std::size_t autosave_seconds = 0;
     std::size_t tokens = 12;
     std::uint64_t seed = 0;
     long double temperature = 0.08L;
     long double learning_rate = 0.32L;
+    long double update_probability = 1.0L;
+    long double update_noise = 0.0L;
+    long double random_init_scale = 0.0L;
     std::size_t threads = 0;
     std::size_t parallel_min_dimensions = 2048;
+    bool shuffle_lines = false;
+    std::filesystem::path save_model_path;
+    std::filesystem::path load_model_path;
 };
 
 void print_usage() {
@@ -37,7 +45,11 @@ void print_usage() {
         << "                         [--max-line-chars N] [--progress-seconds N]\n"
         << "                         [--tokens N] [--seed N]\n"
         << "                         [--temperature X] [--learning-rate X]\n"
-        << "                         [--threads N] [--parallel-min-dim N]\n";
+        << "                         [--threads N] [--parallel-min-dim N]\n"
+        << "                         [--shuffle-lines] [--update-probability X]\n"
+        << "                         [--update-noise X] [--random-init-scale X]\n"
+        << "                         [--save-model PATH] [--load-model PATH]\n"
+        << "                         [--autosave-seconds N]\n";
 }
 
 std::size_t parse_size(std::string_view value) {
@@ -82,6 +94,8 @@ Options parse_options(int argc, char** argv) {
             options.max_line_chars = parse_size(require_value(arg));
         } else if (arg == "--progress-seconds") {
             options.progress_seconds = parse_size(require_value(arg));
+        } else if (arg == "--autosave-seconds") {
+            options.autosave_seconds = parse_size(require_value(arg));
         } else if (arg == "--tokens") {
             options.tokens = parse_size(require_value(arg));
         } else if (arg == "--seed") {
@@ -90,10 +104,22 @@ Options parse_options(int argc, char** argv) {
             options.temperature = parse_float(require_value(arg));
         } else if (arg == "--learning-rate") {
             options.learning_rate = parse_float(require_value(arg));
+        } else if (arg == "--update-probability") {
+            options.update_probability = parse_float(require_value(arg));
+        } else if (arg == "--update-noise") {
+            options.update_noise = parse_float(require_value(arg));
+        } else if (arg == "--random-init-scale") {
+            options.random_init_scale = parse_float(require_value(arg));
         } else if (arg == "--threads") {
             options.threads = parse_size(require_value(arg));
         } else if (arg == "--parallel-min-dim") {
             options.parallel_min_dimensions = parse_size(require_value(arg));
+        } else if (arg == "--shuffle-lines") {
+            options.shuffle_lines = true;
+        } else if (arg == "--save-model") {
+            options.save_model_path = require_value(arg);
+        } else if (arg == "--load-model") {
+            options.load_model_path = require_value(arg);
         } else {
             throw std::runtime_error("unknown argument: " + std::string(arg));
         }
@@ -131,6 +157,30 @@ std::vector<std::string> read_corpus(const Options& options) {
     return lines;
 }
 
+std::uint64_t entropy64() {
+    std::random_device rd;
+    const auto tick = static_cast<std::uint64_t>(
+        std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    return (static_cast<std::uint64_t>(rd()) << 32U) ^
+           static_cast<std::uint64_t>(rd()) ^
+           (tick * 0x9e3779b97f4a7c15ULL);
+}
+
+void save_model_atomically(const dzeta::OscillatorField& field, const std::filesystem::path& path) {
+    if (path.empty()) {
+        return;
+    }
+    if (!path.parent_path().empty()) {
+        std::filesystem::create_directories(path.parent_path());
+    }
+    auto temporary = path;
+    temporary += ".tmp";
+    field.save_model(temporary.string());
+    std::error_code error;
+    std::filesystem::remove(path, error);
+    std::filesystem::rename(temporary, path);
+}
+
 void print_generation_block(dzeta::OscillatorField& field,
                             std::string_view label,
                             const std::vector<std::string>& prompts,
@@ -146,12 +196,19 @@ void print_generation_block(dzeta::OscillatorField& field,
 int main(int argc, char** argv) {
     try {
         const auto options = parse_options(argc, argv);
-        const auto lines = read_corpus(options);
+        auto lines = read_corpus(options);
         dzeta::OscillatorField field(options.oscillators, options.dimensions, options.seed);
+        if (!options.load_model_path.empty()) {
+            field.load_model(options.load_model_path.string());
+        }
         field.set_generation_temperature(options.temperature);
         field.set_learning_rate(options.learning_rate);
+        field.set_update_probability(options.update_probability);
+        field.set_update_noise(options.update_noise);
+        field.set_random_init_scale(options.random_init_scale);
         field.set_thread_count(options.threads);
         field.set_parallel_min_dimensions(options.parallel_min_dimensions);
+        std::mt19937_64 shuffle_rng(options.seed == 0 ? entropy64() : options.seed);
         const std::vector<std::string> prompts{
             "Once upon a time",
             "The little robot",
@@ -167,10 +224,21 @@ int main(int argc, char** argv) {
         std::cout << "dimensions=" << options.dimensions << "\n";
         std::cout << "seconds_budget=" << options.seconds << "\n";
         std::cout << "progress_seconds=" << options.progress_seconds << "\n";
+        std::cout << "autosave_seconds=" << options.autosave_seconds << "\n";
         std::cout << "tokens_per_prompt=" << options.tokens << "\n";
-        std::cout << "seed=" << options.seed << "\n";
+        std::cout << "seed=" << options.seed << (options.seed == 0 ? " (entropy)" : "") << "\n";
         std::cout << "generation_temperature=" << static_cast<double>(options.temperature) << "\n";
         std::cout << "learning_rate=" << static_cast<double>(options.learning_rate) << "\n";
+        std::cout << "update_probability=" << static_cast<double>(options.update_probability) << "\n";
+        std::cout << "update_noise=" << static_cast<double>(options.update_noise) << "\n";
+        std::cout << "random_init_scale=" << static_cast<double>(options.random_init_scale) << "\n";
+        std::cout << "shuffle_lines=" << (options.shuffle_lines ? "true" : "false") << "\n";
+        if (!options.load_model_path.empty()) {
+            std::cout << "load_model_path=" << options.load_model_path.string() << "\n";
+        }
+        if (!options.save_model_path.empty()) {
+            std::cout << "save_model_path=" << options.save_model_path.string() << "\n";
+        }
         std::cout << "threads=" << field.thread_count() << "\n";
         std::cout << "parallel_min_dimensions=" << options.parallel_min_dimensions << "\n";
         std::cout << "observations_initial=" << field.observation_count() << "\n";
@@ -182,9 +250,13 @@ int main(int argc, char** argv) {
         const auto started = std::chrono::steady_clock::now();
         const auto deadline = started + std::chrono::seconds(options.seconds);
         auto next_progress = started + std::chrono::seconds(options.progress_seconds);
+        auto next_autosave = started + std::chrono::seconds(options.autosave_seconds);
         std::size_t lines_seen = 0;
         std::size_t epochs = 0;
         while (std::chrono::steady_clock::now() < deadline) {
+            if (options.shuffle_lines) {
+                std::shuffle(lines.begin(), lines.end(), shuffle_rng);
+            }
             for (const auto& line : lines) {
                 if (std::chrono::steady_clock::now() >= deadline) {
                     break;
@@ -202,6 +274,15 @@ int main(int argc, char** argv) {
                               << " mean_loss=" << static_cast<double>(field.mean_loss()) << "\n";
                     next_progress = now + std::chrono::seconds(options.progress_seconds);
                 }
+                if (options.autosave_seconds != 0 && !options.save_model_path.empty() && now >= next_autosave) {
+                    save_model_atomically(field, options.save_model_path);
+                    std::cerr << "autosave_model=" << options.save_model_path.string()
+                              << " elapsed_ms="
+                              << std::chrono::duration_cast<std::chrono::milliseconds>(now - started).count()
+                              << "\n";
+                    next_autosave = std::chrono::steady_clock::now() +
+                                    std::chrono::seconds(options.autosave_seconds);
+                }
             }
             ++epochs;
         }
@@ -217,6 +298,10 @@ int main(int argc, char** argv) {
         std::cout << "observations_after=" << field.observation_count() << "\n";
         std::cout << "contrastive_updates_after=" << field.contrastive_update_count() << "\n";
         std::cout << "mean_loss_after=" << static_cast<double>(field.mean_loss()) << "\n";
+        if (!options.save_model_path.empty()) {
+            save_model_atomically(field, options.save_model_path);
+            std::cout << "model_saved=" << options.save_model_path.string() << "\n";
+        }
         print_generation_block(field, "after", prompts, options.tokens);
         std::cout << "dzeta_train_smoke_end\n";
         return 0;
