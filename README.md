@@ -116,6 +116,8 @@ The current implementation keeps online training in the stable base projection a
 
 The result is a partial but meaningful step: prompt outputs are more differentiated while preserving the same compact field architecture.
 
+A mixed Hugging Face corpus builder is included for broader checks across stories, instructions, QA, encyclopedic text, and dialogue. It samples across each train split instead of taking `offset=0`, and it strips synthetic row labels so the model is not rewarded for learning dataset headers as templates.
+
 ## Quick Start
 
 This repository is intentionally lightweight. There is no Python package, CUDA dependency, or external runtime.

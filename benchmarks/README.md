@@ -21,6 +21,18 @@ python tools/fetch_hf_text_sample.py \
   --output benchmarks/data/tinystories_sample.txt
 ```
 
+Build a mixed Hugging Face corpus for anti-template checks:
+
+```bash
+python tools/build_mixed_hf_corpus.py \
+  --output benchmarks/data/hf_mixed_1000.txt \
+  --stats benchmarks/data/hf_mixed_1000.stats.json \
+  --seed 12345 \
+  --total 1000
+```
+
+The mixed builder samples random pages across each train split and strips synthetic row labels. This avoids training on artifacts such as the first SQuAD article or repeated `Instruction` / `Response` headers.
+
 Build the benchmark:
 
 ```bash

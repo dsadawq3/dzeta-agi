@@ -125,24 +125,28 @@ public:
                 return;
             }
 
+            using TaskFn = std::decay_t<Fn>;
+            auto task_holder = std::make_shared<TaskFn>(std::forward<Fn>(fn));
+            std::pair<std::size_t, std::size_t> main_range{0, 0};
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 ranges_ = std::move(local_ranges);
-                task_ = [&](std::size_t range_begin, std::size_t range_end) {
-                    fn(range_begin, range_end);
+                task_ = [task_holder](std::size_t range_begin, std::size_t range_end) {
+                    (*task_holder)(range_begin, range_end);
                 };
                 active_workers_ = workers - 1U;
                 remaining_workers_ = active_workers_;
+                main_range = ranges_[workers - 1U];
                 ++generation_;
             }
             work_cv_.notify_all();
 
-            const auto main_range = ranges_[workers - 1U];
-            fn(main_range.first, main_range.second);
+            (*task_holder)(main_range.first, main_range.second);
 
             std::unique_lock<std::mutex> lock(mutex_);
             done_cv_.wait(lock, [&]() { return remaining_workers_ == 0; });
             task_ = {};
+            active_workers_ = 0;
         }
 
     private:
@@ -321,7 +325,7 @@ public:
     }
 
     std::string forward(std::string_view text, std::size_t max_tokens = 24) {
-        auto [fp, current_padic] = seed_weyl_transform(text);
+        auto [fp, current_padic] = seed_weyl_transform(text, false);
         std::string out;
         std::set<std::string> used;
         auto normalize = [&]() {
@@ -357,7 +361,7 @@ public:
             prompt_axes.reserve(prompt_tokens.size() * 2U + 1U);
             const auto add_prompt_axis = [&](std::string_view axis_text, long double weight) {
                 PromptAxis axis;
-                seed_weyl_transform_into(axis_text, axis.field, axis.padic);
+                seed_weyl_transform_into(axis_text, axis.field, axis.padic, true, false);
                 remove_attractor_projection(axis.field, attractor_center);
                 remove_attractor_projection(axis.padic, attractor_padic_center);
                 axis.weight = weight;
@@ -1341,7 +1345,8 @@ private:
     void seed_weyl_transform_into(std::string_view impulse,
                                   std::vector<cx>& ampl,
                                   std::vector<long double>& padic,
-                                  bool enable_dimensional_interference = true) const {
+                                  bool enable_dimensional_interference = true,
+                                  bool allow_parallel = true) const {
         ampl.resize(dim_);
         padic.assign(dim_, 0.0L);
         if (seed_primes_.empty()) {
@@ -1363,7 +1368,7 @@ private:
             std::fill(padic.begin(), padic.end(), padic_base);
         }
 
-        parallel_for_ranges(dim_, [&](std::size_t begin, std::size_t end) {
+        const auto compute_range = [&](std::size_t begin, std::size_t end) {
             constexpr std::size_t seed_stack_capacity = 128;
             std::array<long double, seed_stack_capacity> dither_sin{};
             std::array<long double, seed_stack_capacity> dither_cos{};
@@ -1402,7 +1407,12 @@ private:
                 }
                 ampl[z] = cx(sum_re, sum_im);
             }
-        });
+        };
+        if (allow_parallel) {
+            parallel_for_ranges(dim_, compute_range);
+        } else {
+            compute_range(0, dim_);
+        }
 
         long double an = 0.0L;
         for (auto value : ampl) an += complex_norm(value);
@@ -1421,10 +1431,11 @@ private:
         }
     }
 
-    std::pair<std::vector<cx>, std::vector<long double>> seed_weyl_transform(std::string_view impulse) const {
+    std::pair<std::vector<cx>, std::vector<long double>> seed_weyl_transform(std::string_view impulse,
+                                                                             bool allow_parallel = true) const {
         std::vector<cx> ampl;
         std::vector<long double> padic;
-        seed_weyl_transform_into(impulse, ampl, padic);
+        seed_weyl_transform_into(impulse, ampl, padic, true, allow_parallel);
         return {std::move(ampl), std::move(padic)};
     }
 
