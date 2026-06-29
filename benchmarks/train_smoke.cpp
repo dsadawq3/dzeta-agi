@@ -21,6 +21,7 @@ struct Options {
     std::size_t dimensions = 192;
     std::size_t seconds = 60;
     std::size_t max_lines = 0;
+    std::size_t target_lines = 0;
     std::size_t max_line_chars = 512;
     std::size_t progress_seconds = 30;
     std::size_t autosave_seconds = 0;
@@ -41,7 +42,7 @@ struct Options {
 void print_usage() {
     std::cout
         << "Usage: dzeta_train_smoke --corpus PATH [--seconds N] [--oscillators N]\n"
-        << "                         [--dimensions N] [--max-lines N]\n"
+        << "                         [--dimensions N] [--max-lines N] [--target-lines N]\n"
         << "                         [--max-line-chars N] [--progress-seconds N]\n"
         << "                         [--tokens N] [--seed N]\n"
         << "                         [--temperature X] [--learning-rate X]\n"
@@ -90,6 +91,8 @@ Options parse_options(int argc, char** argv) {
             options.dimensions = parse_size(require_value(arg));
         } else if (arg == "--max-lines") {
             options.max_lines = parse_size(require_value(arg));
+        } else if (arg == "--target-lines") {
+            options.target_lines = parse_size(require_value(arg));
         } else if (arg == "--max-line-chars") {
             options.max_line_chars = parse_size(require_value(arg));
         } else if (arg == "--progress-seconds") {
@@ -126,6 +129,9 @@ Options parse_options(int argc, char** argv) {
     }
     if (options.corpus_path.empty()) {
         throw std::runtime_error("--corpus is required");
+    }
+    if (options.seconds == 0 && options.target_lines == 0) {
+        throw std::runtime_error("--seconds 0 requires --target-lines N");
     }
     return options;
 }
@@ -223,6 +229,7 @@ int main(int argc, char** argv) {
         std::cout << "oscillators_limit=" << options.oscillators << "\n";
         std::cout << "dimensions=" << options.dimensions << "\n";
         std::cout << "seconds_budget=" << options.seconds << "\n";
+        std::cout << "target_lines=" << options.target_lines << "\n";
         std::cout << "progress_seconds=" << options.progress_seconds << "\n";
         std::cout << "autosave_seconds=" << options.autosave_seconds << "\n";
         std::cout << "tokens_per_prompt=" << options.tokens << "\n";
@@ -249,16 +256,19 @@ int main(int argc, char** argv) {
 
         const auto started = std::chrono::steady_clock::now();
         const auto deadline = started + std::chrono::seconds(options.seconds);
+        const bool time_limited = options.seconds != 0;
         auto next_progress = started + std::chrono::seconds(options.progress_seconds);
         auto next_autosave = started + std::chrono::seconds(options.autosave_seconds);
         std::size_t lines_seen = 0;
         std::size_t epochs = 0;
-        while (std::chrono::steady_clock::now() < deadline) {
+        while ((!time_limited || std::chrono::steady_clock::now() < deadline) &&
+               (options.target_lines == 0 || lines_seen < options.target_lines)) {
             if (options.shuffle_lines) {
                 std::shuffle(lines.begin(), lines.end(), shuffle_rng);
             }
             for (const auto& line : lines) {
-                if (std::chrono::steady_clock::now() >= deadline) {
+                if ((time_limited && std::chrono::steady_clock::now() >= deadline) ||
+                    (options.target_lines != 0 && lines_seen >= options.target_lines)) {
                     break;
                 }
                 field.learn(line);

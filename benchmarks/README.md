@@ -52,6 +52,7 @@ Run a 10-minute training smoke:
 ./dzeta_train_smoke \
   --corpus benchmarks/data/tinystories_sample.txt \
   --seconds 600 \
+  --target-lines 500 \
   --oscillators 65536 \
   --dimensions 192 \
   --tokens 12 \
@@ -84,6 +85,8 @@ Run a stochastic, saved high-dimensional experiment:
   --autosave-seconds 300 \
   --progress-seconds 60
 ```
+
+Use `--target-lines N` when the goal is to process an exact number of corpus lines instead of guessing a wall-clock budget. `--seconds 0 --target-lines 500` runs until 500 training lines are processed, then performs final generation and optional final model save.
 
 When `--seed` is omitted, the field seeds itself from entropy and tries to mix CPU RDRAND where the compiler and hardware expose it. The stochastic flags are intentionally explicit so deterministic tests and baseline runs keep their old behavior.
 
