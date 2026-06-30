@@ -2,80 +2,151 @@
 
 DZETA is a C++20 research core for a CPU-first, math-driven intelligence system.
 
-The long-term goal is ambitious but concrete: safe AGI that is useful to humanity and accessible on ordinary hardware, not only behind centralized GPU clusters. This repository is not a finished AGI system. It is a public research core for testing whether compact spectral memory, prime-indexed state, and online field dynamics can produce useful language-like structure without copying the Transformer stack.
+The long-term goal is ambitious: safe AGI that is useful to humanity and accessible on ordinary hardware, not only inside centralized GPU clusters. This repository is not a finished AGI product and does not claim to solve intelligence today. It is an open research system for testing whether compact spectral memory, prime-indexed state, online oscillator dynamics, contrastive routing, and prompt-conditioned field geometry can produce useful language-like structure without copying the standard Transformer stack.
 
-## Status
+The project should be judged by code, logs, reproducible experiments, and failure analysis. The strongest current signal is not that DZETA is already generally intelligent. The strongest signal is that small CPU-only runs show nontrivial sample efficiency, inspectable learned structure, and a real failure mode that can be measured and attacked: global attractor collapse.
+
+## Why This Exists
+
+Modern AI progress is dominated by large Transformer models trained on enormous GPU clusters. That path works, but it concentrates capability behind scarce hardware, expensive training runs, and mostly opaque model state.
+
+DZETA explores a different direction:
+
+- Can intelligence-like structure be built from a compact mathematical field rather than a huge learned matrix stack?
+- Can a model learn online from small amounts of text and keep its state inspectable?
+- Can high-dimensional mathematical structure help with memory and routing without becoming a Transformer clone?
+- Can useful AI research stay runnable on commodity CPUs?
+- Can safety and openness be built into the research path before scale makes the system impossible to inspect?
+
+The current answer is incomplete but interesting enough to keep testing. DZETA has learned grammar-like and story-like structure from tiny CPU-only runs, but it also exposed a core weakness: early versions could collapse into one fluent genre template. Recent work focuses on breaking that collapse through learned geometry rather than through hand-written answer templates.
+
+## Current Status
 
 DZETA is experimental research engineering.
 
-It is not AGI today. It is not a proof of consciousness, not a proof of the Riemann hypothesis, and not a formal implementation of Langlands, p-adic cognition, or physical intelligence.
+It is not AGI today. It is not a proof of consciousness. It is not a proof of the Riemann hypothesis. It is not a formal implementation of Langlands, p-adic cognition, or physical intelligence. Some files contain mathematical utilities and speculative structures; the project is valuable only where those structures are connected to measurable behavior.
 
-What is real and testable here:
+What is real and testable now:
 
 - zero-dependency C++20 core;
 - CPU-only training and generation;
-- online spectral oscillator memory;
-- zeta-zero frequency basis and prime-indexed field diagnostics;
-- stochastic training controls and saved-model persistence;
-- model inspection tools for token links, prompt traces, and learned state;
-- reproducible benchmark logs from local TinyStories experiments.
+- online token learning through spectral oscillator memory;
+- high-dimensional field projection over a zeta-zero basis;
+- prime-indexed and p-adic diagnostic channels;
+- learned key/query/transition state per token oscillator;
+- context prototypes per token;
+- contrastive hard-negative pressure;
+- stochastic update controls;
+- entropy and RDRAND-assisted seeding when available;
+- saved-model persistence and model inspection;
+- mixed Hugging Face corpus builder;
+- benchmark logs for high-dimensional CPU experiments;
+- regression tests for prompt differentiation and attractor collapse.
 
-The project should be judged by behavior, logs, and code review, not by large claims.
+What is still not solved:
 
-## Research Direction
+- long-form coherent generation;
+- robust semantic grounding outside text;
+- multimodal perception;
+- compact saved-model format;
+- independent evaluation against established baselines;
+- stable scaling laws;
+- prompt differentiation across large, diverse corpora;
+- proof that the architecture scales toward general reasoning.
 
-Transformers learn huge embedding spaces and route information with attention. DZETA explores a different route:
+This README is intentionally explicit about limits because DZETA is trying to be a serious research project, not a marketing page.
 
-1. keep a fixed mathematical basis;
-2. project text into a spectral field;
-3. store tokens as adaptive oscillators with key/query/transition state;
-4. use contrastive pressure to separate hard negatives;
-5. inspect the learned field directly instead of treating it as a remote black box.
+## Core Idea
 
-The question is not "can this beat a production LLM today?" It cannot. The question is more specific: can a small CPU-first field system show nontrivial sample efficiency, prompt-sensitive memory, and inspectable structure that justify deeper research?
+DZETA treats text as impulses into a mathematical field.
 
-Current results say yes, with important limits.
+The system tokenizes input, projects context into a high-dimensional spectral representation, and stores learned behavior in adaptive token oscillators. Each oscillator keeps multiple vector channels:
+
+- a **key**: where this token tends to be recognized from;
+- a **query**: where generation should move after selecting it;
+- a **transition**: a learned bridge from current state to next state;
+- p-adic signatures for additional discrete/number-theoretic structure;
+- contrastive negative memory for hard-negative separation;
+- context prototypes for multiple local meanings of the same token.
+
+Generation is a routing problem through this learned field. A token is not selected only because it was seen after another token. It is scored by spectral similarity, p-adic fit, transition fit, context-tail overlap, learned reliability, contrastive penalties, and anti-attractor geometry.
+
+The architecture is not a Transformer:
+
+- no attention layers;
+- no dense learned Transformer blocks;
+- no GPU dependency;
+- no pretrained external model;
+- no hard-coded response templates;
+- no prompt-specific word lists.
+
+It is also not just a Markov chain anymore. Early versions were too close to associative next-token memory. The current system stores transition vectors, context prototypes, hard negatives, prompt-delta geometry, and learned prompt anchors. The remaining question is whether these mechanisms become genuinely useful as data and dimensions increase.
+
+## Architecture At A Glance
+
+The main implementation is in `src/token_field.h`.
+
+High-level flow:
+
+1. **Tokenization**
+   - Input text is split into visible tokens.
+   - Resonance subword traces add hidden morphology-like signals without replacing words with BPE templates.
+
+2. **Spectral Projection**
+   - Text/context is projected into a high-dimensional complex field.
+   - The basis uses precomputed nontrivial zeta zeros and prime-derived phases.
+   - p-adic diagnostic coordinates are computed alongside the complex field.
+
+3. **Online Learning**
+   - Each observed token updates a token oscillator.
+   - The oscillator stores key/query/transition vectors and p-adic signatures.
+   - Multiple context prototypes can form under the same token.
+   - Contrastive hard negatives push confusing oscillators away.
+
+4. **Stochastic Training Controls**
+   - `--update-probability` can skip some updates.
+   - `--update-noise` injects small noise into updates.
+   - `--random-init-scale` initializes oscillator state away from zero.
+   - Omitting `--seed` uses entropy and attempts to mix hardware RDRAND where supported.
+
+5. **Generation**
+   - The prompt is projected into the field.
+   - The system scores candidate oscillators.
+   - The selected token moves the field through the learned transition.
+   - Prompt-delta and anti-attractor mechanisms attempt to keep different prompts from collapsing into the same corpus center.
+
+6. **Inspection**
+   - Models can be saved and loaded.
+   - `benchmarks/inspect_model.cpp` can inspect strong tokens and token links.
+   - The project treats inspectability as a core requirement, not an afterthought.
 
 ## What Changed Recently
 
-Early versions collapsed into a single global TinyStories attractor. The system generated fluent-looking short continuations, but many prompts produced variations of the same pattern.
+The project went through several important stages.
 
-Recent work added three non-Transformer mechanisms to attack that failure mode:
+### 1. Early Associative Core
 
-- **resonance subword traces**: words keep their visible token, but also leave hidden subword resonance pieces such as suffix/prefix traces;
-- **dimensional interference**: an experimental high-dimensional self-folding step where distant spectral coordinates interfere with each other instead of remaining independent;
-- **anti-attractor routing**: generation computes a learned global attractor center and penalizes candidates that are too close to that center while rewarding candidates that are more prompt-specific;
-- **prompt-delta axes**: the prompt is split into several spectral axes, the global attractor projection is removed, and the remaining differential component is kept alive during generation.
-- **prompt anchor deflation**: learned prompt-token oscillators form a contrastive anchor field, while generation compares positive prompt transport against a `-prompt_delta` counterfactual path.
+The first public shape of the system had a spectral vocabulary and mathematical utilities, but generation could still behave too much like associative next-token lookup. It could memorize local token neighborhoods, but it did not have enough pressure to separate prompt-specific trajectories.
 
-These are not hand-written text templates. No prompt-specific answer lists are encoded. The routing is computed from learned oscillator vectors, p-adic signatures, frequency pressure, and spectral similarity.
+This criticism was valid. A project claiming an AGI direction cannot stop at "stores tokens and retrieves nearby tokens." The architecture needed actual learned state, loss-like feedback, transition structure, and a way to resist global corpus templates.
 
-The result is not a solved generation system, but it crosses a first practical barrier: the model no longer only evolves the same global template. In a fixed-seed 9000-dimensional 60-line run, the baseline stayed near one shared `flashlight / caterpillar / blueberries / friends` center. With dimensional interference enabled, outputs still share corpus style, but different prompts route into visibly different local trajectories:
+### 2. Adaptive Oscillator Memory
 
-```text
-Once upon a time
-peaceful there little misbehave everywhere blueberry determined surprise librarian loudly delayed ...
+The core moved toward learned oscillator state:
 
-The little robot
-sunshine fish mysterious scurried stretched unhappy unpacked completely everywhere ...
+- token oscillators gained key/query/transition vectors;
+- updates became online and loss-tracked;
+- context prototypes were added;
+- contrastive hard-negative updates were added;
+- saved-model persistence and inspection were added.
 
-A safe assistant
-flashlight tent caterpillar blanket butterfly original stretched laughing refreshing wandered ...
+This made the system more than a static dictionary. It still remained small and CPU-first, but it began to show grammar-like and story-like structure from very small runs.
 
-The child learned
-sunshine watched splashed stronger surprise refreshing determined thanked scurried realized ...
+### 3. High-Dimensional Stochastic Runs
 
-Open intelligence
-open crying approached content everywhere visiting Everywhere stumbled selling farewell exclaimed ...
-```
+The most interesting early signal came from high-dimensional runs around 9000 dimensions. Increasing dimensionality did not simply produce random noise. On TinyStories, the model began producing compact story-like fragments after surprisingly small data exposure.
 
-This is still a small TinyStories experiment. It is not proof of understanding. But it is stronger than random word spikes and stronger than the earlier one-template collapse.
-
-## Experimental Signals
-
-### 9000-dimensional stochastic run
-
-The strongest saved local model so far:
+A saved 9000-dimensional stochastic run:
 
 ```text
 dimensions:          9000
@@ -101,110 +172,188 @@ Output:
 exploring something different Suddenly beautiful special treasures started walking excited because together After friends asked little
 ```
 
-This has a recognizable micro-story structure: action, object, event shift, emotion, cause, time, and characters. The model learned that structure from a very small CPU-only run.
+This is not proof of understanding. It is also not just random letters. The output has recognizable structure: action, object, event shift, emotion, cause, time, and characters. The important research signal is that this appeared from a small CPU-only run, not from a pretrained LLM.
 
-### 500-line convergence run
+### 4. The 500-Line Failure
 
-A larger 500-line 9000-dimensional run improved grammar and vocabulary but revealed a weakness: TinyStories is narrow enough that the system learned a strong genre prior. That made outputs smoother but less prompt-specific.
+A larger 500-line TinyStories run improved grammar and vocabulary, but prompt differentiation became weaker. The model learned the TinyStories genre too well and began producing variations of a broad story template.
 
-That failure is useful. It identified the next real problem: not "make loss lower", but suppress global attractors and improve prompt differentiation.
-
-### Anti-template routing run
-
-The current experimental `--dim-interference` mode targets that exact problem. It does not add textual templates. It adds a geometric penalty against the learned corpus center and a reward for candidates that are closer to the prompt field than to the global attractor.
-
-The current implementation keeps online training in the stable base projection and applies dimensional interference during generation/routing. That makes the experiment safer: the saved model is still learned with the same oscillator update rules, while the response path uses prompt-delta axes to resist collapse into the dominant genre center.
-
-The result is a partial but meaningful step: prompt outputs are more differentiated while preserving the same compact field architecture.
-
-The latest prompt-deflation regression test is intentionally narrow: a shared-prefix stress corpus collapses to `baseline_overlap=1`, while the experimental route with prompt anchors and counterfactual transport reaches `experimental_overlap=0.32`.
-
-A mixed Hugging Face corpus builder is included for broader checks across stories, instructions, QA, encyclopedic text, and dialogue. It samples across each train split instead of taking `offset=0`, and it strips synthetic row labels so the model is not rewarded for learning dataset headers as templates.
-
-## Quick Start
-
-This repository is intentionally lightweight. There is no Python package, CUDA dependency, or external runtime.
-
-Build with CMake:
-
-```bash
-cmake -S . -B build
-cmake --build build
-ctest --test-dir build
-```
-
-Or compile a single test directly:
-
-```bash
-g++ -std=c++20 -O2 -I src -I src/dzeta tests/smoke.cpp -o dzeta_smoke
-./dzeta_smoke
-```
-
-Minimal C++ usage:
-
-```cpp
-#include "token_field.h"
-
-#include <iostream>
-
-int main() {
-    dzeta::OscillatorField field(65536, 9000);
-    field.set_generation_temperature(1.0L);
-    field.set_dimension_interference(0.25L);
-
-    field.learn("the little robot started walking into a beautiful garden");
-    field.learn("open intelligence should help people safely");
-
-    std::cout << field.forward("open intelligence", 16) << "\n";
-}
-```
-
-## Benchmark Runner
-
-The benchmark binary trains from a text corpus and prints before/after prompt continuations:
-
-```bash
-g++ -std=c++20 -O3 -march=x86-64-v3 -DDZETA_NATIVE_SIMD=1 \
-  -I src -I src/dzeta benchmarks/train_smoke.cpp -o dzeta_train_smoke
-
-./dzeta_train_smoke \
-  --corpus benchmarks/data/tinystories_sample.txt \
-  --seconds 0 \
-  --target-lines 60 \
-  --oscillators 65536 \
-  --dimensions 9000 \
-  --tokens 24 \
-  --temperature 1.0 \
-  --learning-rate 1.0 \
-  --threads 20 \
-  --parallel-min-dim 1 \
-  --shuffle-lines \
-  --update-probability 0.8 \
-  --update-noise 0.001 \
-  --random-init-scale 0.001 \
-  --dim-interference 0.25
-```
-
-Useful options:
+This failure changed the research target. Lower loss was not the main goal. The real problem became:
 
 ```text
---save-model PATH          Save learned oscillator state
---load-model PATH          Resume or inspect a saved model
---autosave-seconds N       Periodic atomic saves
---shuffle-lines            Randomize corpus order
---update-probability X     Stochastic update gate
---update-noise X           Noise injected into updates
---random-init-scale X      Random oscillator initialization
---dim-interference X       Experimental anti-template geometry, 0 by default
+How do we keep useful corpus structure while preventing one global attractor from dominating every prompt?
 ```
 
-Large saved models are intentionally not committed. A 9000-dimensional dump stores multiple full-precision complex and scalar vectors per oscillator plus context prototypes, so it can be several GiB.
+That is the current core problem of the repository.
+
+### 5. Dimensional Interference And Anti-Attractor Routing
+
+The first anti-template mechanism introduced `--dim-interference`.
+
+It added:
+
+- high-dimensional self-folding during response projection;
+- prompt resonance from learned prompt-token oscillators;
+- prompt-delta axes;
+- a learned global attractor center;
+- a score penalty for candidates too close to that attractor;
+- a prompt-specificity reward.
+
+The goal was not to add text rules. The goal was to make the field geometry itself less likely to fall into the same response basin.
+
+In a 9000-dimensional 60-line TinyStories A/B test, the baseline stayed near a shared center like:
+
+```text
+flashlight / caterpillar / friends / blueberries / wanted / garden / outside
+```
+
+With `--dim-interference 0.25`, outputs still shared TinyStories style, but different prompts moved into more visibly different local neighborhoods:
+
+```text
+Once upon a time
+peaceful there little misbehave everywhere blueberry determined surprise librarian loudly delayed ...
+
+The little robot
+sunshine fish mysterious scurried stretched unhappy unpacked completely everywhere ...
+
+A safe assistant
+flashlight tent caterpillar blanket butterfly original stretched laughing refreshing wandered ...
+
+The child learned
+sunshine watched splashed stronger surprise refreshing determined thanked scurried realized ...
+
+Open intelligence
+open crying approached content everywhere visiting Everywhere stumbled selling farewell exclaimed ...
+```
+
+This was a partial barrier crossing: not solved, but no longer a simple permutation of one answer.
+
+### 6. Mixed Hugging Face Corpus
+
+TinyStories is narrow. To test whether the collapse was only a TinyStories artifact, a mixed corpus builder was added:
+
+- TinyStories, 20%;
+- Databricks Dolly 15k, 30%;
+- SQuAD, 20%;
+- WikiText, 20%;
+- DailyDialog mirror, 10%.
+
+The builder is `tools/build_mixed_hf_corpus.py`.
+
+Important lessons from this step:
+
+- Sampling from `offset=0` was a methodological bug because early SQuAD rows overrepresented specific entities.
+- Adding synthetic labels like `Instruction:`, `Response:`, `Question:`, `Passage:`, `Article:`, and `Turn:` was also a bug because the model correctly learned those repeated labels as templates.
+- The current builder samples random 100-row pages across train splits and strips synthetic row labels.
+
+This matters because DZETA is sensitive to corpus structure. Bad corpus construction can look like a model problem.
+
+### 7. Prompt Anchor Deflation
+
+The latest mathematical step strengthens the response path inside `--dim-interference`.
+
+It adds:
+
+- **Attractor subspace deflation**
+  - DZETA no longer subtracts only one global center.
+  - It builds a small orthogonal basis from high-weight learned oscillators and removes that shared subspace from prompt deltas and prompt axes.
+
+- **Prompt Hamiltonian transport**
+  - Each generation step compares candidates against a state transported by the prompt delta.
+  - The prompt becomes an operator on the field, not just a static similarity target.
+
+- **Counterfactual sensitivity**
+  - Candidates are also compared against a `-prompt_delta` transport.
+  - A candidate is favored when the positive prompt transport raises it more than the counterfactual path.
+
+- **Contrastive prompt anchors**
+  - If prompt tokens already exist in memory, their learned key/query/transition vectors are combined with their contrastive negative vectors.
+  - This creates a prompt-specific anchor field from learned geometry, not from hard-coded words.
+
+- **Context-specific gating**
+  - Candidate scoring includes a gate for current prompt/context-tail relevance.
+  - This reduces leakage from strong local islands, for example one prompt's `open intelligence` island pulling unrelated prompts toward itself.
+
+Regression test:
+
+```text
+baseline_overlap=1
+experimental_overlap=0.32
+dzeta_prompt_deflation passed
+```
+
+The test is narrow by design. It creates a shared-prefix stress corpus where the baseline collapses. The experimental path must make different prompts diverge more than the baseline path. This does not prove semantic understanding, but it gives a concrete guard against a known failure.
+
+## Current Experimental Signals
+
+### Signal: Sample Efficiency
+
+The system can produce structured short text after seeing a small number of lines. The outputs are imperfect, but they are not uniformly random. This is the main reason the project is worth continuing.
+
+### Signal: Dimensional Sensitivity
+
+High dimensions did not simply destroy the system. In several experiments, larger dimensionality made the model behave less like a trivial association table and more like a field with richer local neighborhoods.
+
+This is not automatically good. It can also create stronger attractors. But it suggests dimensionality is an active part of the architecture, not only a storage size.
+
+### Signal: Inspectable Learned State
+
+Saved models can be inspected. Token summaries and token links expose what the system learned. For example, frequent language tokens rise naturally, and tokens such as names, animals, actions, and prompt words can be queried for learned associations.
+
+Inspection is critical because this project should not rely only on generated text vibes.
+
+### Signal: Attractor Collapse Is Measurable
+
+The project now has a direct regression test for prompt overlap. This matters because the biggest problem was not "can it emit words?" but "can it stop emitting the same neighborhood for every prompt?"
+
+The current overlap test:
+
+```text
+baseline overlap > 0.70 required
+experimental overlap < 0.35 required
+observed baseline_overlap=1
+observed experimental_overlap=0.32
+```
+
+### Signal: CPU-Only Feasibility
+
+The system runs on CPU. It is not fast enough yet, and the 9000-dimensional saved models are too large, but the research loop is possible without a GPU.
+
+Recent 9000-dimensional mixed-corpus smoke with AVX2-class build:
+
+```text
+compiler profile:    -O3 -march=x86-64-v3
+dimensions:          9000
+threads:             20
+target lines:        10
+dim_interference:    0.25
+elapsed:             16409 ms
+lines per second:    0.609422
+```
+
+On this Windows/MinGW machine, raw `-march=native` caused an access violation in the high-dimensional generation path. The safer AVX2-class profile `-march=x86-64-v3` completed. CMake uses that profile on Windows/MinGW when `DZETA_NATIVE_SIMD=ON`.
+
+## What DZETA Is Not
+
+DZETA is not a chatbot product.
+
+DZETA is not a wrapper around OpenAI, Anthropic, Llama, or any pretrained model.
+
+DZETA is not a prompt-engineered demo.
+
+DZETA is not a Transformer with renamed parts.
+
+DZETA is not a claim that zeta zeros magically create consciousness.
+
+DZETA is not currently grounded in images, audio, video, robotics, or real-world sensor streams.
+
+DZETA is a research core. Its value depends on whether the architecture keeps producing measurable improvements under harder tests.
 
 ## Repository Structure
 
 ```text
 src/
-  token_field.h          OscillatorField core
+  token_field.h          OscillatorField core: learning, generation, routing
   adaptive_tokenizer.h   Token/subword tokenizer helpers
   sat.h                  Query/SAT landscape helpers
   dzeta/
@@ -225,6 +374,9 @@ benchmarks/
   inspect_model.cpp      Saved-model inspection tool
   logs/                  Selected experiment logs
 
+docs/
+  experiments/           Written experiment reports and interpretations
+
 tests/
   smoke.cpp
   learning.cpp
@@ -232,32 +384,280 @@ tests/
   persistence.cpp
   stochastic.cpp
   tokenizer.cpp
+  prompt_deflation.cpp
+
+tools/
+  fetch_hf_text_sample.py
+  build_mixed_hf_corpus.py
+```
+
+## Build
+
+This repository is intentionally lightweight. There is no Python package, CUDA dependency, or external model runtime.
+
+Build with CMake:
+
+```bash
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build
+```
+
+Enable the local SIMD profile:
+
+```bash
+cmake -S . -B build -DDZETA_NATIVE_SIMD=ON
+cmake --build build
+ctest --test-dir build
+```
+
+On Windows/MinGW, `DZETA_NATIVE_SIMD=ON` uses:
+
+```text
+-O3 -march=x86-64-v3
+```
+
+This is intentional. Raw `-march=native` was unstable on at least one high-dimensional MinGW run.
+
+Compile one test directly:
+
+```bash
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/smoke.cpp -o dzeta_smoke
+./dzeta_smoke
+```
+
+Compile the prompt-deflation regression test:
+
+```bash
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/prompt_deflation.cpp -o dzeta_prompt_deflation
+./dzeta_prompt_deflation
+```
+
+Expected output:
+
+```text
+baseline_overlap=1
+experimental_overlap=0.32
+dzeta_prompt_deflation passed
+```
+
+## Minimal C++ Usage
+
+```cpp
+#include "token_field.h"
+
+#include <iostream>
+
+int main() {
+    dzeta::OscillatorField field(65536, 9000);
+    field.set_generation_temperature(1.0L);
+    field.set_dimension_interference(0.25L);
+    field.set_thread_count(20);
+    field.set_parallel_min_dimensions(1);
+
+    field.learn("the little robot started walking into a beautiful garden");
+    field.learn("open intelligence should help people safely");
+    field.learn("a safe assistant explains risks before giving advice");
+
+    std::cout << field.forward("open intelligence", 16) << "\n";
+}
+```
+
+## Benchmark Runner
+
+Build:
+
+```bash
+g++ -std=c++20 -O3 -march=x86-64-v3 -DDZETA_NATIVE_SIMD=1 \
+  -I src -I src/dzeta benchmarks/train_smoke.cpp -o dzeta_train_smoke
+```
+
+Run a fixed-line high-dimensional smoke:
+
+```bash
+./dzeta_train_smoke \
+  --corpus benchmarks/data/hf_mixed_1000.txt \
+  --seconds 0 \
+  --target-lines 10 \
+  --oscillators 65536 \
+  --dimensions 9000 \
+  --tokens 12 \
+  --temperature 1.0 \
+  --learning-rate 1.0 \
+  --threads 20 \
+  --parallel-min-dim 1 \
+  --shuffle-lines \
+  --update-probability 0.8 \
+  --update-noise 0.001 \
+  --random-init-scale 0.001 \
+  --dim-interference 0.25
+```
+
+Useful options:
+
+```text
+--save-model PATH          Save learned oscillator state
+--load-model PATH          Resume or inspect a saved model
+--autosave-seconds N       Periodic atomic saves
+--shuffle-lines            Randomize corpus order
+--seed N                   Fixed seed; omit for entropy/RDRAND-assisted seeding
+--update-probability X     Stochastic update gate
+--update-noise X           Noise injected into updates
+--random-init-scale X      Random oscillator initialization
+--dim-interference X       Experimental anti-template geometry, 0 by default
+--threads N                Field worker count
+--parallel-min-dim N       Dimension threshold for parallel loops
+```
+
+## Data
+
+Datasets are not committed.
+
+Fetch a TinyStories sample:
+
+```bash
+python tools/fetch_hf_text_sample.py \
+  --dataset roneneldan/TinyStories \
+  --config default \
+  --split train \
+  --rows 1000 \
+  --output benchmarks/data/tinystories_sample.txt
+```
+
+Build the mixed Hugging Face corpus:
+
+```bash
+python tools/build_mixed_hf_corpus.py \
+  --output benchmarks/data/hf_mixed_1000.txt \
+  --stats benchmarks/data/hf_mixed_1000.stats.json \
+  --seed 12345 \
+  --total 1000
+```
+
+The mixed builder currently uses:
+
+- `roneneldan/TinyStories`
+- `databricks/databricks-dolly-15k`
+- `rajpurkar/squad`
+- `Salesforce/wikitext`
+- `roskoN/dailydialog`
+
+The originally requested `li2017dailydialog/daily_dialog` dataset is script-only in Hugging Face Dataset Viewer, so the builder uses the data-only `roskoN/dailydialog` mirror for reproducible local extraction.
+
+## Model Persistence
+
+DZETA can save and load learned oscillator fields:
+
+```bash
+./dzeta_train_smoke \
+  --corpus benchmarks/data/tinystories_sample.txt \
+  --seconds 600 \
+  --oscillators 65536 \
+  --dimensions 9000 \
+  --tokens 24 \
+  --temperature 1.0 \
+  --learning-rate 1.0 \
+  --threads 20 \
+  --parallel-min-dim 1 \
+  --shuffle-lines \
+  --update-probability 0.8 \
+  --update-noise 0.001 \
+  --random-init-scale 0.001 \
+  --save-model benchmarks/models/dim9000_run.dzeta.bin \
+  --autosave-seconds 300
+```
+
+Large saved models are intentionally ignored by git. A 9000-dimensional saved model can be several GiB because it stores multiple full-precision `complex<long double>` and `long double` vectors per oscillator plus context prototypes. This is a faithful research dump, not a compact deployment artifact.
+
+Inspect a saved model:
+
+```bash
+g++ -std=c++20 -O3 -march=x86-64-v3 \
+  -I src -I src/dzeta benchmarks/inspect_model.cpp -o dzeta_inspect_model
+
+./dzeta_inspect_model \
+  --model benchmarks/models/dim9000_run.dzeta.bin \
+  --top 20 \
+  --token child \
+  --token forest \
+  --prompt "The little robot"
+```
+
+The inspector reports strong tokens and token links split into next-state, shared-context, transition, and p-adic components.
+
+## Tests
+
+Current direct test set:
+
+```bash
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/smoke.cpp -o dzeta_smoke && ./dzeta_smoke
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/learning.cpp -o dzeta_learning && ./dzeta_learning
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/parallel.cpp -o dzeta_parallel && ./dzeta_parallel
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/persistence.cpp -o dzeta_persistence && ./dzeta_persistence
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/stochastic.cpp -o dzeta_stochastic && ./dzeta_stochastic
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/tokenizer.cpp -o dzeta_tokenizer && ./dzeta_tokenizer
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/prompt_deflation.cpp -o dzeta_prompt_deflation && ./dzeta_prompt_deflation
+```
+
+Recent local verification:
+
+```text
+dzeta_smoke passed
+dzeta_learning passed
+dzeta_parallel passed
+dzeta_persistence passed
+dzeta_stochastic passed
+dzeta_tokenizer passed
+baseline_overlap=1
+experimental_overlap=0.32
+dzeta_prompt_deflation passed
 ```
 
 ## Design Principles
 
-- **CPU-first:** the system should remain useful on ordinary hardware.
-- **Inspectable:** learned state should be saveable, loadable, and criticizable.
-- **No template cheating:** improvements should come from field dynamics and learned geometry, not hard-coded answers.
-- **Safety before scale:** generated text is a signal, not proof.
+- **CPU-first:** useful research should remain possible on ordinary hardware.
+- **Inspectable state:** learned memory should be saveable, loadable, and criticizable.
+- **No template cheating:** improvements should come from field dynamics and learned geometry, not hard-coded answer text.
+- **Small experiments first:** do not hide weak mechanisms behind scale.
+- **Safety before scale:** generated text is a signal, not proof of agency or understanding.
 - **Open access:** if this direction works, it should reduce dependence on scarce centralized compute.
 
-## Limitations
+## Current Limitations
 
-- DZETA is a research core, not a full assistant product.
-- The current public results are small-corpus experiments.
-- TinyStories is narrow and creates strong genre attractors.
 - Prompt differentiation is improved but not solved.
-- The saved-model format is large because it stores full-precision high-dimensional state.
-- Stronger claims need longer runs, more datasets, more seeds, and independent evaluation.
+- Small mixed-corpus runs still show local attractor leakage.
+- TinyStories-style corpora can create strong genre priors.
+- The saved-model format is much too large.
+- The benchmark suite is still small.
+- There are no image, audio, video, robotics, or tool-use data paths yet.
+- There is no independent evaluation harness against standard language-model tasks.
+- The system still needs more seeds, more datasets, longer runs, and better metrics.
 
-## Roadmap
+## Near-Term Roadmap
 
-- Run anti-template routing across multiple seeds and more diverse corpora.
-- Add a compact saved-model format.
-- Add benchmark scripts that compute prompt-overlap and attractor-collapse metrics.
-- Improve model inspection for prompt-specific neighborhoods.
-- Keep the project CPU-first and readable while the architecture evolves.
+1. Add overlap and attractor-collapse metrics to the benchmark runner.
+2. Run mixed-corpus A/B tests at 30, 60, 144, and 500 lines.
+3. Inspect prompt-anchor neighborhoods before and after training.
+4. Add compact model persistence.
+5. Add more stable CPU optimization profiles.
+6. Add a small evaluation suite for question answering, dialogue continuation, and story completion.
+7. Explore byte/subword resonance without turning the architecture into BPE-template generation.
+8. Keep all claims tied to logs and tests.
+
+## Research Hypothesis
+
+The working hypothesis is not that zeta zeros alone create AGI.
+
+The hypothesis is narrower and testable:
+
+```text
+A compact, inspectable, CPU-first field system with spectral projection,
+adaptive oscillator memory, contrastive negative pressure, and prompt-conditioned
+anti-attractor geometry may show useful sample-efficient learning behavior that
+is different enough from Transformer scaling to justify deeper research.
+```
+
+That hypothesis may fail. If it fails, the failure should be measured clearly. If it continues to produce unexpected structure under harder tests, it deserves more serious attention.
 
 ## License
 
