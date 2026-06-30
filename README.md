@@ -46,6 +46,7 @@ Recent work added three non-Transformer mechanisms to attack that failure mode:
 - **dimensional interference**: an experimental high-dimensional self-folding step where distant spectral coordinates interfere with each other instead of remaining independent;
 - **anti-attractor routing**: generation computes a learned global attractor center and penalizes candidates that are too close to that center while rewarding candidates that are more prompt-specific;
 - **prompt-delta axes**: the prompt is split into several spectral axes, the global attractor projection is removed, and the remaining differential component is kept alive during generation.
+- **prompt anchor deflation**: learned prompt-token oscillators form a contrastive anchor field, while generation compares positive prompt transport against a `-prompt_delta` counterfactual path.
 
 These are not hand-written text templates. No prompt-specific answer lists are encoded. The routing is computed from learned oscillator vectors, p-adic signatures, frequency pressure, and spectral similarity.
 
@@ -116,6 +117,8 @@ The current implementation keeps online training in the stable base projection a
 
 The result is a partial but meaningful step: prompt outputs are more differentiated while preserving the same compact field architecture.
 
+The latest prompt-deflation regression test is intentionally narrow: a shared-prefix stress corpus collapses to `baseline_overlap=1`, while the experimental route with prompt anchors and counterfactual transport reaches `experimental_overlap=0.32`.
+
 A mixed Hugging Face corpus builder is included for broader checks across stories, instructions, QA, encyclopedic text, and dialogue. It samples across each train split instead of taking `offset=0`, and it strips synthetic row labels so the model is not rewarded for learning dataset headers as templates.
 
 ## Quick Start
@@ -161,7 +164,7 @@ int main() {
 The benchmark binary trains from a text corpus and prints before/after prompt continuations:
 
 ```bash
-g++ -std=c++20 -O3 -march=native -DDZETA_NATIVE_SIMD=1 \
+g++ -std=c++20 -O3 -march=x86-64-v3 -DDZETA_NATIVE_SIMD=1 \
   -I src -I src/dzeta benchmarks/train_smoke.cpp -o dzeta_train_smoke
 
 ./dzeta_train_smoke \

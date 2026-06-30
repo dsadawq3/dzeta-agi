@@ -341,14 +341,22 @@ public:
         const std::vector<long double> prompt_padic_trace = current_padic;
         std::vector<cx> attractor_center;
         std::vector<long double> attractor_padic_center;
+        std::vector<std::vector<cx>> attractor_basis;
+        std::vector<std::vector<long double>> attractor_padic_basis;
         if (dimension_interference_ > 0.0L) {
             build_attractor_center(attractor_center, attractor_padic_center);
+            build_attractor_subspace(attractor_center,
+                                     attractor_padic_center,
+                                     attractor_basis,
+                                     attractor_padic_basis);
         }
         std::vector<cx> prompt_delta = prompt_trace;
         std::vector<long double> prompt_padic_delta = prompt_padic_trace;
         if (dimension_interference_ > 0.0L) {
             remove_attractor_projection(prompt_delta, attractor_center);
             remove_attractor_projection(prompt_padic_delta, attractor_padic_center);
+            remove_attractor_subspace_projection(prompt_delta, attractor_basis);
+            remove_attractor_subspace_projection(prompt_padic_delta, attractor_padic_basis);
         }
         struct PromptAxis {
             std::vector<cx> field;
@@ -364,6 +372,8 @@ public:
                 seed_weyl_transform_into(axis_text, axis.field, axis.padic, true, false);
                 remove_attractor_projection(axis.field, attractor_center);
                 remove_attractor_projection(axis.padic, attractor_padic_center);
+                remove_attractor_subspace_projection(axis.field, attractor_basis);
+                remove_attractor_subspace_projection(axis.padic, attractor_padic_basis);
                 axis.weight = weight;
                 prompt_axes.push_back(std::move(axis));
             };
@@ -379,6 +389,17 @@ public:
                 }
             }
             add_prompt_axis(text, 1.0L);
+        }
+        std::vector<cx> prompt_anchor_field;
+        std::vector<long double> prompt_anchor_padic;
+        if (dimension_interference_ > 0.0L) {
+            build_prompt_anchor_field(text,
+                                      attractor_center,
+                                      attractor_padic_center,
+                                      attractor_basis,
+                                      attractor_padic_basis,
+                                      prompt_anchor_field,
+                                      prompt_anchor_padic);
         }
         std::vector<std::uint64_t> active_tail = lexical_tail(text);
         const auto push_active_token = [&](const std::string& token) {
@@ -396,6 +417,24 @@ public:
                 long double ct = 1.0L;
                 sincos_ld(theta, st, ct);
                 fp[z] *= cx(ct, st);
+            }
+            std::vector<cx> routed_fp = fp;
+            std::vector<long double> routed_padic = current_padic;
+            std::vector<cx> counter_routed_fp = fp;
+            if (dimension_interference_ > 0.0L) {
+                apply_prompt_hamiltonian_transport(routed_fp,
+                                                   routed_padic,
+                                                   prompt_delta,
+                                                   prompt_padic_delta,
+                                                   s,
+                                                   1.0L);
+                std::vector<long double> counter_padic = current_padic;
+                apply_prompt_hamiltonian_transport(counter_routed_fp,
+                                                   counter_padic,
+                                                   prompt_delta,
+                                                   prompt_padic_delta,
+                                                   s,
+                                                   -1.0L);
             }
 
             struct Candidate {
@@ -474,9 +513,9 @@ public:
                     cx dm = 0;
                     const auto& key = candidate_key(candidate);
                     for (std::size_t j = 0; j < dim_; ++j) {
-                        dm += conjugate_multiply(key[j], fp[j]);
+                        dm += conjugate_multiply(key[j], routed_fp[j]);
                     }
-                    const long double padic_match = 0.5L + 0.5L * cosine(current_padic, candidate_padic(candidate));
+                    const long double padic_match = 0.5L + 0.5L * cosine(routed_padic, candidate_padic(candidate));
                     const long double observations =
                         static_cast<long double>(std::max<std::size_t>(1, oscs_[i].observations));
                     const long double frequency_pressure =
@@ -509,8 +548,39 @@ public:
                         dimension_interference_ > 0.0L && !attractor_padic_center.empty()
                             ? 0.5L + 0.5L * normalized_cosine(attractor_padic_center, candidate_padic(candidate))
                             : 0.0L;
+                    const long double attractor_mode_fit =
+                        dimension_interference_ > 0.0L && !attractor_basis.empty()
+                            ? complex_subspace_pressure(key, attractor_basis)
+                            : 0.0L;
+                    const long double attractor_padic_mode_fit =
+                        dimension_interference_ > 0.0L && !attractor_padic_basis.empty()
+                            ? real_subspace_pressure(candidate_padic(candidate), attractor_padic_basis)
+                            : 0.0L;
                     const long double attractor_pressure =
-                        std::clamp(0.72L * attractor_fit + 0.28L * attractor_padic_fit, 0.0L, 1.0L);
+                        std::clamp(0.42L * attractor_fit + 0.16L * attractor_padic_fit +
+                                       0.31L * attractor_mode_fit + 0.11L * attractor_padic_mode_fit,
+                                   0.0L,
+                                   1.0L);
+                    const long double anchor_fit =
+                        dimension_interference_ > 0.0L && !prompt_anchor_field.empty()
+                            ? normalized_complex_similarity(prompt_anchor_field, key)
+                            : 0.0L;
+                    const long double anchor_padic_fit =
+                        dimension_interference_ > 0.0L && !prompt_anchor_padic.empty()
+                            ? std::max<long double>(0.0L,
+                                                    normalized_cosine(prompt_anchor_padic,
+                                                                      candidate_padic(candidate)))
+                            : 0.0L;
+                    const long double raw_state_fit =
+                        dimension_interference_ > 0.0L ? normalized_complex_similarity(counter_routed_fp, key) : 0.0L;
+                    const long double transported_fit =
+                        dimension_interference_ > 0.0L ? normalized_complex_similarity(routed_fp, key) : 0.0L;
+                    const long double differential_sensitivity =
+                        dimension_interference_ > 0.0L
+                            ? std::max<long double>(0.0L,
+                                                    transported_fit - raw_state_fit +
+                                                        0.22L * delta_fit - 0.24L * attractor_pressure)
+                            : 0.0L;
                     long double axis_best = 0.0L;
                     long double axis_mean = 0.0L;
                     if (dimension_interference_ > 0.0L && !prompt_axes.empty()) {
@@ -534,7 +604,8 @@ public:
                         std::max<long double>(0.0L,
                                               0.40L * prompt_fit + 0.16L * prompt_padic_fit +
                                                   0.28L * delta_fit + 0.08L * delta_padic_fit +
-                                                  0.34L * axis_drive -
+                                                  0.34L * axis_drive +
+                                                  0.32L * anchor_fit + 0.10L * anchor_padic_fit -
                                                   0.62L * attractor_fit - 0.18L * attractor_padic_fit);
                     const long double differential_drive =
                         dimension_interference_ > 0.0L
@@ -556,10 +627,10 @@ public:
                                          2.10L)
                             : 0.40L + 0.90L * lexical_match;
                     const long double bridge_fit =
-                        projected_bridge_similarity(fp, candidate_transition(candidate), candidate_query(candidate));
-                    const long double negative_spectral = complex_similarity(fp, candidate_negative_key(candidate));
+                        projected_bridge_similarity(routed_fp, candidate_transition(candidate), candidate_query(candidate));
+                    const long double negative_spectral = complex_similarity(routed_fp, candidate_negative_key(candidate));
                     const long double negative_padic =
-                        0.5L + 0.5L * cosine(current_padic, candidate_negative_padic(candidate));
+                        0.5L + 0.5L * cosine(routed_padic, candidate_negative_padic(candidate));
                     const long double collision =
                         std::clamp(0.78L * negative_spectral + 0.22L * negative_padic, 0.0L, 1.0L);
                     const long double contrastive_penalty =
@@ -578,10 +649,59 @@ public:
                                          0.05L,
                                          1.18L)
                             : 1.0L;
+                    const long double sensitivity_gain =
+                        dimension_interference_ > 0.0L
+                            ? std::clamp(0.58L + 7.0L * dimension_interference_ * differential_sensitivity,
+                                         0.08L,
+                                         2.35L)
+                            : 1.0L;
+                    const long double subspace_penalty =
+                        dimension_interference_ > 0.0L
+                            ? std::clamp(1.0L -
+                                             (0.86L + 2.85L * dimension_interference_) * attractor_mode_fit -
+                                             (0.16L + 1.05L * dimension_interference_) *
+                                                 attractor_padic_mode_fit,
+                                         0.04L,
+                                         1.0L)
+                            : 1.0L;
+                    const long double prompt_axis_signal =
+                        dimension_interference_ > 0.0L
+                            ? std::max({axis_best,
+                                        0.82L * anchor_fit + 0.18L * anchor_padic_fit,
+                                        0.68L * delta_fit + 0.32L * delta_padic_fit,
+                                        0.45L * prompt_fit + 0.25L * prompt_padic_fit + 0.30L * lexical_match})
+                            : 1.0L;
+                    const long double prompt_axis_gate =
+                        dimension_interference_ > 0.0L
+                            ? std::clamp(0.06L + 1.85L * prompt_axis_signal +
+                                             0.55L * differential_sensitivity -
+                                             0.38L * attractor_pressure,
+                                         0.035L,
+                                         1.75L)
+                            : 1.0L;
+                    const long double anchor_gate =
+                        dimension_interference_ > 0.0L && !prompt_anchor_field.empty()
+                            ? std::clamp(0.05L + 2.15L * (0.84L * anchor_fit + 0.16L * anchor_padic_fit) +
+                                             0.35L * differential_sensitivity -
+                                             0.22L * attractor_pressure,
+                                         0.035L,
+                                         1.85L)
+                            : 1.0L;
+                    const long double context_specificity_gate =
+                        dimension_interference_ > 0.0L
+                            ? std::clamp(0.08L + 3.20L * lexical_match +
+                                             0.72L * differential_sensitivity +
+                                             0.34L * anchor_fit -
+                                             0.18L * attractor_pressure,
+                                         0.035L,
+                                         1.85L)
+                            : 1.0L;
                     long double score =
                         field_drive * (0.70L + 0.30L * padic_match) *
                         (0.75L + 0.25L * bridge_fit) * reliability * context_gate *
-                        contrastive_penalty * route_gain * anti_template;
+                        contrastive_penalty * route_gain * anti_template *
+                        sensitivity_gain * subspace_penalty * prompt_axis_gate *
+                        anchor_gate * context_specificity_gate;
                     if (score > 1e-12L) {
                         raw.push_back({score, i, candidate.prototype});
                     }
@@ -640,42 +760,55 @@ public:
             }
             for (std::size_t j = 0; j < dim_; ++j) {
                 const long double trace = dimension_interference_ > 0.0L
-                                              ? 0.16L / (1.0L + 0.12L * static_cast<long double>(s))
+                                              ? 0.24L / (1.0L + 0.07L * static_cast<long double>(s))
                                               : 0.22L / (1.0L + 0.18L * static_cast<long double>(s));
                 const long double delta_trace =
                     dimension_interference_ > 0.0L && !prompt_delta.empty()
-                        ? std::min<long double>(0.34L, 0.08L + 0.82L * dimension_interference_) /
-                              (1.0L + 0.04L * static_cast<long double>(s))
+                        ? std::min<long double>(0.48L, 0.14L + 1.10L * dimension_interference_) /
+                              (1.0L + 0.02L * static_cast<long double>(s))
                         : 0.0L;
                 const long double axis_trace =
                     active_axis != nullptr
-                        ? std::min<long double>(0.32L, 0.06L + 0.70L * dimension_interference_) /
-                              (1.0L + 0.03L * static_cast<long double>(s))
+                        ? std::min<long double>(0.40L, 0.10L + 0.95L * dimension_interference_) /
+                              (1.0L + 0.02L * static_cast<long double>(s))
                         : 0.0L;
-                const long double query_weight = dimension_interference_ > 0.0L ? 0.48L : 0.58L;
+                const long double anchor_trace =
+                    dimension_interference_ > 0.0L && !prompt_anchor_field.empty()
+                        ? std::min<long double>(0.34L, 0.08L + 0.82L * dimension_interference_) /
+                              (1.0L + 0.02L * static_cast<long double>(s))
+                        : 0.0L;
+                const long double query_weight = dimension_interference_ > 0.0L ? 0.38L : 0.58L;
                 const long double bridge_weight =
-                    std::max(0.0L, 1.0L - query_weight - trace - delta_trace - axis_trace);
+                    std::max(0.0L, 1.0L - query_weight - trace - delta_trace - axis_trace - anchor_trace);
                 fp[j] = query_weight * query[j] + bridge_weight * bridged[j] + trace * prompt_trace[j] +
                         delta_trace * prompt_delta[j] +
-                        (active_axis != nullptr ? axis_trace * active_axis->field[j] : cx(0, 0));
+                        (active_axis != nullptr ? axis_trace * active_axis->field[j] : cx(0, 0)) +
+                        (!prompt_anchor_field.empty() ? anchor_trace * prompt_anchor_field[j] : cx(0, 0));
             }
             const auto& next_padic = candidate_next_padic(best);
             for (std::size_t j = 0; j < std::min(current_padic.size(), next_padic.size()); ++j) {
                 const long double trace = 0.18L / (1.0L + 0.20L * static_cast<long double>(s));
                 const long double delta_trace =
                     dimension_interference_ > 0.0L && !prompt_padic_delta.empty()
-                        ? std::min<long double>(0.22L, 0.04L + 0.46L * dimension_interference_) /
-                              (1.0L + 0.04L * static_cast<long double>(s))
+                        ? std::min<long double>(0.32L, 0.08L + 0.66L * dimension_interference_) /
+                              (1.0L + 0.02L * static_cast<long double>(s))
                         : 0.0L;
                 const long double axis_trace =
                     active_axis != nullptr
-                        ? std::min<long double>(0.20L, 0.04L + 0.40L * dimension_interference_) /
-                              (1.0L + 0.03L * static_cast<long double>(s))
+                        ? std::min<long double>(0.28L, 0.06L + 0.56L * dimension_interference_) /
+                              (1.0L + 0.02L * static_cast<long double>(s))
                         : 0.0L;
-                const long double next_weight = std::max(0.0L, 1.0L - trace - delta_trace - axis_trace);
+                const long double anchor_trace =
+                    dimension_interference_ > 0.0L && !prompt_anchor_padic.empty()
+                        ? std::min<long double>(0.24L, 0.05L + 0.48L * dimension_interference_) /
+                              (1.0L + 0.02L * static_cast<long double>(s))
+                        : 0.0L;
+                const long double next_weight =
+                    std::max(0.0L, 1.0L - trace - delta_trace - axis_trace - anchor_trace);
                 current_padic[j] = next_weight * next_padic[j] + trace * prompt_padic_trace[j] +
                                    delta_trace * prompt_padic_delta[j] +
-                                   (active_axis != nullptr ? axis_trace * active_axis->padic[j] : 0.0L);
+                                   (active_axis != nullptr ? axis_trace * active_axis->padic[j] : 0.0L) +
+                                   (!prompt_anchor_padic.empty() ? anchor_trace * prompt_anchor_padic[j] : 0.0L);
             }
             normalize_real(current_padic);
             normalize();
@@ -1498,6 +1631,71 @@ private:
         return nullptr;
     }
 
+    void build_prompt_anchor_field(std::string_view text,
+                                   const std::vector<cx>& attractor_center,
+                                   const std::vector<long double>& attractor_padic_center,
+                                   const std::vector<std::vector<cx>>& attractor_basis,
+                                   const std::vector<std::vector<long double>>& attractor_padic_basis,
+                                   std::vector<cx>& anchor_field,
+                                   std::vector<long double>& anchor_padic) const {
+        anchor_field.assign(dim_, cx(0, 0));
+        anchor_padic.assign(dim_, 0.0L);
+        const auto tokens = tokenize_query(text);
+        if (tokens.empty()) {
+            anchor_field.clear();
+            anchor_padic.clear();
+            return;
+        }
+
+        long double total_weight = 0.0L;
+        for (std::size_t i = 0; i < tokens.size(); ++i) {
+            if (tokens[i].size() <= 1) {
+                continue;
+            }
+            const auto* oscillator = find_prompt_oscillator(tokens[i]);
+            if (oscillator == nullptr) {
+                continue;
+            }
+            const long double recency =
+                1.0L + static_cast<long double>(i) / std::max<long double>(1.0L, tokens.size());
+            const long double weight =
+                recency * std::clamp(static_cast<long double>(tokens[i].size()) / 6.0L, 0.55L, 1.75L) *
+                std::clamp(std::log1p(static_cast<long double>(oscillator->observations)) + 0.7L,
+                           0.7L,
+                           3.0L);
+            for (std::size_t j = 0; j < dim_; ++j) {
+                anchor_field[j] += weight * (0.26L * oscillator->key[j] +
+                                             0.62L * oscillator->query[j] +
+                                             0.22L * oscillator->transition[j] -
+                                             0.42L * oscillator->negative_key[j]);
+                anchor_padic[j] +=
+                    weight * (0.32L * oscillator->padic_signature[j] +
+                              0.68L * oscillator->query_padic_signature[j] -
+                              0.38L * oscillator->negative_padic_signature[j]);
+            }
+            total_weight += weight;
+        }
+
+        if (total_weight <= 1.0e-18L) {
+            anchor_field.clear();
+            anchor_padic.clear();
+            return;
+        }
+        const long double inv_weight = 1.0L / total_weight;
+        for (auto& value : anchor_field) {
+            value *= inv_weight;
+        }
+        for (auto& value : anchor_padic) {
+            value *= inv_weight;
+        }
+        normalize_complex(anchor_field);
+        normalize_real(anchor_padic);
+        remove_attractor_projection(anchor_field, attractor_center);
+        remove_attractor_projection(anchor_padic, attractor_padic_center);
+        remove_attractor_subspace_projection(anchor_field, attractor_basis);
+        remove_attractor_subspace_projection(anchor_padic, attractor_padic_basis);
+    }
+
     void build_attractor_center(std::vector<cx>& center, std::vector<long double>& padic_center) const {
         center.assign(dim_, cx(0, 0));
         padic_center.assign(dim_, 0.0L);
@@ -1536,6 +1734,84 @@ private:
         normalize_real(padic_center);
     }
 
+    void build_attractor_subspace(const std::vector<cx>& center,
+                                  const std::vector<long double>& padic_center,
+                                  std::vector<std::vector<cx>>& basis,
+                                  std::vector<std::vector<long double>>& padic_basis) const {
+        basis.clear();
+        padic_basis.clear();
+        if (oscs_.empty() || dim_ == 0) {
+            return;
+        }
+
+        struct AttractorCandidate {
+            long double weight;
+            std::size_t oscillator;
+        };
+        std::vector<AttractorCandidate> candidates;
+        candidates.reserve(oscs_.size());
+        for (std::size_t i = 0; i < oscs_.size(); ++i) {
+            const auto& oscillator = oscs_[i];
+            if (oscillator.observations == 0 || oscillator.token.size() <= 1 ||
+                is_subword_continuation(oscillator.token)) {
+                continue;
+            }
+            const long double observations = static_cast<long double>(oscillator.observations);
+            const long double weight =
+                std::sqrt(observations) * std::clamp(oscillator.strength / (1.0L + oscillator.error_ema),
+                                                     0.05L,
+                                                     10.0L);
+            candidates.push_back({weight, i});
+        }
+        if (candidates.empty()) {
+            return;
+        }
+
+        const auto by_weight = [](const AttractorCandidate& left, const AttractorCandidate& right) {
+            if (left.weight == right.weight) {
+                return left.oscillator < right.oscillator;
+            }
+            return left.weight > right.weight;
+        };
+        const std::size_t inspect = std::min<std::size_t>(64, candidates.size());
+        std::partial_sort(candidates.begin(), candidates.begin() + inspect, candidates.end(), by_weight);
+        constexpr std::size_t max_axes = 6;
+
+        for (std::size_t ci = 0; ci < inspect && basis.size() < max_axes; ++ci) {
+            const auto& oscillator = oscs_[candidates[ci].oscillator];
+            std::vector<cx> direction(dim_, cx(0, 0));
+            std::vector<long double> padic_direction(dim_, 0.0L);
+            for (std::size_t j = 0; j < dim_; ++j) {
+                direction[j] = 0.55L * oscillator.key[j] + 0.45L * oscillator.query[j];
+                padic_direction[j] =
+                    0.55L * oscillator.padic_signature[j] + 0.45L * oscillator.query_padic_signature[j];
+            }
+
+            subtract_complex_projection(direction, center);
+            subtract_real_projection(padic_direction, padic_center);
+            for (const auto& axis : basis) {
+                subtract_complex_projection(direction, axis);
+            }
+            for (const auto& axis : padic_basis) {
+                subtract_real_projection(padic_direction, axis);
+            }
+
+            const long double field_norm = complex_vector_norm(direction);
+            const long double padic_norm_value = real_vector_norm(padic_direction);
+            if (field_norm <= 1.0e-12L || padic_norm_value <= 1.0e-12L) {
+                continue;
+            }
+            for (auto& value : direction) {
+                value /= field_norm;
+            }
+            for (auto& value : padic_direction) {
+                value /= padic_norm_value;
+            }
+            basis.push_back(std::move(direction));
+            padic_basis.push_back(std::move(padic_direction));
+        }
+    }
+
     static void remove_attractor_projection(std::vector<cx>& values, const std::vector<cx>& center) {
         const std::size_t count = std::min(values.size(), center.size());
         if (count == 0) {
@@ -1565,6 +1841,90 @@ private:
             values[i] -= projection * center[i];
         }
         normalize_real(values);
+    }
+
+    static void remove_attractor_subspace_projection(std::vector<cx>& values,
+                                                     const std::vector<std::vector<cx>>& basis) {
+        for (const auto& axis : basis) {
+            subtract_complex_projection(values, axis);
+        }
+        normalize_complex(values);
+    }
+
+    static void remove_attractor_subspace_projection(std::vector<long double>& values,
+                                                     const std::vector<std::vector<long double>>& basis) {
+        for (const auto& axis : basis) {
+            subtract_real_projection(values, axis);
+        }
+        normalize_real(values);
+    }
+
+    static long double complex_subspace_pressure(const std::vector<cx>& values,
+                                                 const std::vector<std::vector<cx>>& basis) {
+        long double energy = 0.0L;
+        for (const auto& axis : basis) {
+            const std::size_t count = std::min(values.size(), axis.size());
+            cx projection = 0;
+            for (std::size_t i = 0; i < count; ++i) {
+                projection += conjugate_multiply(axis[i], values[i]);
+            }
+            energy += complex_norm(projection);
+        }
+        return std::clamp(std::sqrt(energy), 0.0L, 1.0L);
+    }
+
+    static long double real_subspace_pressure(const std::vector<long double>& values,
+                                              const std::vector<std::vector<long double>>& basis) {
+        long double energy = 0.0L;
+        for (const auto& axis : basis) {
+            const std::size_t count = std::min(values.size(), axis.size());
+            long double projection = 0.0L;
+            for (std::size_t i = 0; i < count; ++i) {
+                projection += values[i] * axis[i];
+            }
+            energy += projection * projection;
+        }
+        return std::clamp(std::sqrt(energy), 0.0L, 1.0L);
+    }
+
+    void apply_prompt_hamiltonian_transport(std::vector<cx>& state,
+                                            std::vector<long double>& padic,
+                                            const std::vector<cx>& prompt_delta,
+                                            const std::vector<long double>& prompt_padic_delta,
+                                            std::size_t step,
+                                            long double polarity = 1.0L) const {
+        const std::size_t count = std::min(state.size(), prompt_delta.size());
+        if (count == 0) {
+            return;
+        }
+        const long double decay = 1.0L / (1.0L + 0.06L * static_cast<long double>(step));
+        const long double phase_strength =
+            std::min<long double>(0.62L, 0.12L + 1.70L * dimension_interference_) * decay;
+        const long double mix_strength =
+            std::min<long double>(0.24L, 0.04L + 0.58L * dimension_interference_) * decay;
+        for (std::size_t j = 0; j < count; ++j) {
+            const cx prompt_direction = polarity * prompt_delta[j];
+            const cx coupling = conjugate_multiply(prompt_direction, state[j]);
+            const long double padic_charge =
+                j < padic.size() && j < prompt_padic_delta.size()
+                    ? polarity * padic[j] * prompt_padic_delta[j]
+                    : 0.0L;
+            const long double phase =
+                phase_strength * std::atan2(coupling.imag() + 0.35L * padic_charge,
+                                            1.0L + std::abs(coupling.real()));
+            long double st = 0.0L;
+            long double ct = 1.0L;
+            sincos_ld(phase, st, ct);
+            const cx transported = state[j] * cx(ct, st);
+            const long double gate = std::clamp(0.55L + 0.45L * std::abs(padic_charge), 0.20L, 1.25L);
+            state[j] = (1.0L - mix_strength) * transported + mix_strength * gate * prompt_direction;
+        }
+        const std::size_t padic_count = std::min(padic.size(), prompt_padic_delta.size());
+        for (std::size_t j = 0; j < padic_count; ++j) {
+            padic[j] = (1.0L - mix_strength) * padic[j] + mix_strength * polarity * prompt_padic_delta[j];
+        }
+        normalize_complex(state);
+        normalize_real(padic);
     }
 
     void inject_prompt_resonance(std::string_view text,
@@ -1606,6 +1966,51 @@ private:
             }
             normalize_complex(state);
             normalize_real(padic);
+        }
+    }
+
+    static long double complex_vector_norm(const std::vector<cx>& values) {
+        long double norm = 0.0L;
+        for (auto value : values) {
+            norm += complex_norm(value);
+        }
+        return norm <= 1.0e-30L ? 0.0L : std::sqrt(norm);
+    }
+
+    static long double real_vector_norm(const std::vector<long double>& values) {
+        long double norm = 0.0L;
+        for (auto value : values) {
+            norm += value * value;
+        }
+        return norm <= 1.0e-30L ? 0.0L : std::sqrt(norm);
+    }
+
+    static void subtract_complex_projection(std::vector<cx>& values, const std::vector<cx>& axis) {
+        const std::size_t count = std::min(values.size(), axis.size());
+        if (count == 0) {
+            return;
+        }
+        cx projection = 0;
+        for (std::size_t i = 0; i < count; ++i) {
+            projection += conjugate_multiply(axis[i], values[i]);
+        }
+        for (std::size_t i = 0; i < count; ++i) {
+            values[i] -= projection * axis[i];
+        }
+    }
+
+    static void subtract_real_projection(std::vector<long double>& values,
+                                         const std::vector<long double>& axis) {
+        const std::size_t count = std::min(values.size(), axis.size());
+        if (count == 0) {
+            return;
+        }
+        long double projection = 0.0L;
+        for (std::size_t i = 0; i < count; ++i) {
+            projection += values[i] * axis[i];
+        }
+        for (std::size_t i = 0; i < count; ++i) {
+            values[i] -= projection * axis[i];
         }
     }
 

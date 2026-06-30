@@ -42,10 +42,10 @@ g++ -std=c++20 -O2 -Wall -Wextra -pedantic \
   -o dzeta_train_smoke
 ```
 
-For local CPU-native benchmarking, build with native vectorization flags:
+For local CPU benchmarking on Windows/MinGW, use the AVX2-class `x86-64-v3` profile. On some CPUs, raw `-march=native` can enable wider instructions that are unstable with this long-double spectral path.
 
 ```bash
-g++ -std=c++20 -O3 -march=native -Wall -Wextra -pedantic \
+g++ -std=c++20 -O3 -march=x86-64-v3 -Wall -Wextra -pedantic \
   -I src -I src/dzeta \
   benchmarks/train_smoke.cpp \
   -o dzeta_train_smoke_native
@@ -140,7 +140,7 @@ Persistence notes:
 Inspect a saved model:
 
 ```bash
-g++ -std=c++20 -O3 -march=native -Wall -Wextra -pedantic \
+g++ -std=c++20 -O3 -march=x86-64-v3 -Wall -Wextra -pedantic \
   -I src -I src/dzeta \
   benchmarks/inspect_model.cpp \
   -o dzeta_inspect_model
