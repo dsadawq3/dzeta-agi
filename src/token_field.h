@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <fstream>
 #include <functional>
+#include <iostream>
 #include <istream>
 #include <limits>
 #include <memory>
@@ -241,29 +242,53 @@ public:
         if (tokens.size() < 3) { embed_tokens(tokens); return; }
         embed_tokens(tokens);
         const std::size_t train_tokens = std::min<std::size_t>(tokens.size(), 128);
+
+        // Precompute raw waves for each token based on its position in the sequence
+        std::vector<std::vector<long double>> token_waves(train_tokens, std::vector<long double>(seed_primes_.size(), 0.0L));
+        for (std::size_t i = 0; i < train_tokens; ++i) {
+            std::uint64_t seed = stable_hash(tokens[i]) ^ (0x9e3779b97f4a7c15ULL * (i + 1U));
+            for (std::size_t j = 0; j < seed_primes_.size(); ++j) {
+                token_waves[i][j] = 2.0L * field_unit_from_hash(splitmix64(seed)) - 1.0L;
+            }
+        }
+
         struct FieldProjection {
-            std::string text;
             std::vector<cx> ampl;
             std::vector<long double> padic;
-            bool valid = false;
         };
-        auto fill_projection = [&](FieldProjection& projection, std::string projection_text) {
-            projection.text = std::move(projection_text);
-            seed_weyl_transform_into(projection.text, projection.ampl, projection.padic, false);
-            projection.valid = true;
-        };
-        FieldProjection previous_projection;
-        FieldProjection current_projection;
-        FieldProjection context_scratch;
+
+        // Precompute all context and token projections incrementally
+        std::vector<FieldProjection> projections(train_tokens + 1);
+        std::vector<long double> running_sum(seed_primes_.size(), 0.0L);
+        
+        for (std::size_t len = 1; len <= train_tokens; ++len) {
+            for (std::size_t j = 0; j < seed_primes_.size(); ++j) {
+                running_sum[j] += token_waves[len - 1][j];
+            }
+            std::vector<long double> signature(seed_primes_.size(), 0.0L);
+            long double norm = 0.0L;
+            for (std::size_t j = 0; j < seed_primes_.size(); ++j) {
+                const long double wave = running_sum[j] / std::sqrt(static_cast<long double>(len));
+                signature[j] = wave;
+                norm += wave * wave;
+            }
+            if (norm > 1.0e-18L) {
+                norm = std::sqrt(norm);
+                for (std::size_t j = 0; j < seed_primes_.size(); ++j) {
+                    signature[j] /= norm;
+                }
+            }
+            seed_weyl_transform_from_signature(signature, projections[len].ampl, projections[len].padic, "", false, true);
+        }
+
         std::vector<cx> transition;
         std::vector<std::string> context_tokens;
+        
         for (std::size_t ti = 0; ti < train_tokens; ++ti) {
             if (bad_token(tokens[ti])) {
+                push_context_token(context_tokens, tokens[ti]);
                 continue;
             }
-            const std::string context_prefix = context_string(context_tokens);
-            const std::string token_prefix = context_prefix.empty() ? tokens[ti] : context_prefix + ' ' + tokens[ti];
-            const bool projection_remains_context = context_tokens.size() + 1U <= max_context_tokens_;
             auto found = token_index_.find(tokens[ti]);
             if (found == token_index_.end()) {
                 push_context_token(context_tokens, tokens[ti]);
@@ -275,59 +300,85 @@ public:
                 continue;
             }
 
-            FieldProjection* context_projection = nullptr;
-            if (previous_projection.valid && previous_projection.text == context_prefix) {
-                context_projection = &previous_projection;
-            } else {
-                fill_projection(context_scratch, context_prefix);
-                context_projection = &context_scratch;
+            std::size_t context_len = context_tokens.size();
+            std::size_t current_len = context_len + 1;
+            
+            if (context_len >= projections.size() || current_len >= projections.size() || 
+                projections[context_len].ampl.empty() || projections[current_len].ampl.empty()) {
+                push_context_token(context_tokens, tokens[ti]);
+                continue;
             }
-            fill_projection(current_projection, token_prefix);
-            if (std::all_of(context_projection->ampl.begin(), context_projection->ampl.end(), [](cx v) {
+
+            const auto& context_proj = projections[context_len];
+            const auto& current_proj = projections[current_len];
+
+            if (std::all_of(context_proj.ampl.begin(), context_proj.ampl.end(), [](cx v) {
                     return std::abs(v) < 1e-30L;
                 })) {
                 push_context_token(context_tokens, tokens[ti]);
-                previous_projection.valid = false;
                 continue;
             }
 
             if (update_probability_ < 1.0L && random_unit() > update_probability_) {
                 push_context_token(context_tokens, tokens[ti]);
-                if (projection_remains_context) {
-                    std::swap(previous_projection, current_projection);
-                } else {
-                    previous_projection.valid = false;
-                }
                 continue;
             }
+
+            std::vector<cx> ctx_ampl = context_proj.ampl;
+            std::vector<cx> curr_ampl = current_proj.ampl;
+            std::vector<long double> ctx_padic = context_proj.padic;
+            std::vector<long double> curr_padic = current_proj.padic;
+
             if (update_noise_ > 0.0L) {
-                add_complex_noise(context_projection->ampl, update_noise_);
-                add_complex_noise(current_projection.ampl, update_noise_);
-                add_real_noise(context_projection->padic, update_noise_);
-                add_real_noise(current_projection.padic, update_noise_);
+                add_complex_noise(ctx_ampl, update_noise_);
+                add_complex_noise(curr_ampl, update_noise_);
+                add_real_noise(ctx_padic, update_noise_);
+                add_real_noise(curr_padic, update_noise_);
             }
-            spectral_bridge_into(context_projection->ampl, current_projection.ampl, transition);
+
+            spectral_bridge_into(ctx_ampl, curr_ampl, transition);
             update_oscillator(oscs_[positive_index],
-                              context_projection->ampl,
-                              current_projection.ampl,
+                              ctx_ampl,
+                              curr_ampl,
                               transition,
-                              context_projection->padic,
-                              current_projection.padic,
-                              lexical_tail(context_prefix));
-            update_contrastive_negatives(positive_index, context_projection->ampl, context_projection->padic);
+                              ctx_padic,
+                              curr_padic,
+                              lexical_tail(context_string(context_tokens)));
+            update_contrastive_negatives(positive_index, ctx_ampl, ctx_padic);
             push_context_token(context_tokens, tokens[ti]);
-            if (projection_remains_context) {
-                std::swap(previous_projection, current_projection);
-            } else {
-                previous_projection.valid = false;
-            }
         }
     }
 
     std::string forward(std::string_view text, std::size_t max_tokens = 24) {
+        constexpr std::size_t no_prototype = std::numeric_limits<std::size_t>::max();
         auto [fp, current_padic] = seed_weyl_transform(text, false);
         std::string out;
         std::set<std::string> used;
+        std::vector<std::string> recently_generated;
+        struct SavedOscillator {
+            std::size_t index;
+            std::vector<cx> query;
+            std::vector<cx> transition;
+            std::vector<std::vector<cx>> proto_queries;
+            std::vector<std::vector<cx>> proto_transitions;
+        };
+        std::vector<SavedOscillator> saved_oscs;
+        auto save_oscillator = [&](std::size_t idx) {
+            for (const auto& saved : saved_oscs) {
+                if (saved.index == idx) return;
+            }
+            SavedOscillator saved;
+            saved.index = idx;
+            saved.query = oscs_[idx].query;
+            saved.transition = oscs_[idx].transition;
+            saved.proto_queries.reserve(oscs_[idx].prototypes.size());
+            saved.proto_transitions.reserve(oscs_[idx].prototypes.size());
+            for (const auto& proto : oscs_[idx].prototypes) {
+                saved.proto_queries.push_back(proto.query);
+                saved.proto_transitions.push_back(proto.transition);
+            }
+            saved_oscs.push_back(std::move(saved));
+        };
         auto normalize = [&]() {
             long double n = 0.0L;
             for (auto v : fp) n += complex_norm(v);
@@ -409,6 +460,19 @@ public:
                 active_tail.erase(active_tail.begin(), active_tail.end() - tail_limit);
             }
         };
+
+        std::vector<std::size_t> history_indices;
+        const auto prompt_tokens = tokenize_query(text);
+        for (const auto& token : prompt_tokens) {
+            const auto found = token_index_.find(std::string(token));
+            if (found != token_index_.end()) {
+                history_indices.push_back(found->second);
+            }
+        }
+
+        std::size_t previous_oscillator_index = std::numeric_limits<std::size_t>::max();
+        std::size_t previous_prototype_index = no_prototype;
+        std::vector<cx> previous_fp = fp;
 
         for (std::size_t s = 0; s < max_tokens; ++s) {
             for (std::size_t z = 0; z < dim_; ++z) {
@@ -504,9 +568,27 @@ public:
             // compute raw delta matches
             std::vector<Candidate> raw;
             for (std::size_t i = 0; i < oscs_.size(); ++i) {
-                if (used.find(oscs_[i].token) != used.end()) continue;
                 if (oscs_[i].token.size() <= 1) continue;
                 if (is_subword_continuation(oscs_[i].token)) continue;
+                
+                // strict repetition ban for the last 10 tokens (except short words <= 3 chars)
+                bool strictly_banned = false;
+                long double repetition_penalty = 1.0L;
+                if (!recently_generated.empty()) {
+                    for (std::size_t r = 0; r < recently_generated.size(); ++r) {
+                        if (recently_generated[r] == oscs_[i].token) {
+                            const std::size_t distance = recently_generated.size() - r;
+                            if (distance <= 10 && oscs_[i].token.size() > 3) {
+                                strictly_banned = true;
+                                break;
+                            }
+                            const long double dist_ld = static_cast<long double>(distance);
+                            const long double penalty = 0.08L + 0.92L * (1.0L - 1.0L / dist_ld);
+                            repetition_penalty = std::min(repetition_penalty, penalty);
+                        }
+                    }
+                }
+                if (strictly_banned) continue;
                 const std::size_t prototypes = std::max<std::size_t>(1, oscs_[i].prototypes.size());
                 for (std::size_t p = 0; p < prototypes; ++p) {
                     const Candidate candidate{0.0L, i, oscs_[i].prototypes.empty() ? no_prototype : p};
@@ -616,14 +698,14 @@ public:
                             : 0.0L;
                     const long double field_drive =
                         dimension_interference_ > 0.0L
-                            ? std::max<long double>(std::abs(dm),
+                            ? std::max<long double>(std::max<long double>(0.0L, static_cast<long double>(dm.real())),
                                                     (0.16L + 1.85L * dimension_interference_) *
                                                         differential_drive)
-                            : std::abs(dm);
+                            : std::max<long double>(0.0L, static_cast<long double>(dm.real()));
                     const long double context_gate =
                         dimension_interference_ > 0.0L
                             ? std::clamp(0.10L + 1.50L * lexical_match + 1.15L * prompt_specificity,
-                                         0.05L,
+                                         0.30L,
                                          2.10L)
                             : 0.40L + 0.90L * lexical_match;
                     const long double bridge_fit =
@@ -640,19 +722,19 @@ public:
                     const long double route_gain =
                         dimension_interference_ > 0.0L
                             ? std::clamp(0.25L + 26.0L * dimension_interference_ * prompt_specificity,
-                                         0.08L,
+                                         0.30L,
                                          4.60L)
                             : 1.0L;
                     const long double anti_template =
                         dimension_interference_ > 0.0L
                             ? std::clamp(1.18L - (0.85L + 1.80L * dimension_interference_) * attractor_pressure,
-                                         0.05L,
+                                         0.25L,
                                          1.18L)
                             : 1.0L;
                     const long double sensitivity_gain =
                         dimension_interference_ > 0.0L
                             ? std::clamp(0.58L + 7.0L * dimension_interference_ * differential_sensitivity,
-                                         0.08L,
+                                         0.30L,
                                          2.35L)
                             : 1.0L;
                     const long double subspace_penalty =
@@ -661,7 +743,7 @@ public:
                                              (0.86L + 2.85L * dimension_interference_) * attractor_mode_fit -
                                              (0.16L + 1.05L * dimension_interference_) *
                                                  attractor_padic_mode_fit,
-                                         0.04L,
+                                         0.25L,
                                          1.0L)
                             : 1.0L;
                     const long double prompt_axis_signal =
@@ -676,7 +758,7 @@ public:
                             ? std::clamp(0.06L + 1.85L * prompt_axis_signal +
                                              0.55L * differential_sensitivity -
                                              0.38L * attractor_pressure,
-                                         0.035L,
+                                         0.20L,
                                          1.75L)
                             : 1.0L;
                     const long double anchor_gate =
@@ -684,7 +766,7 @@ public:
                             ? std::clamp(0.05L + 2.15L * (0.84L * anchor_fit + 0.16L * anchor_padic_fit) +
                                              0.35L * differential_sensitivity -
                                              0.22L * attractor_pressure,
-                                         0.035L,
+                                         0.20L,
                                          1.85L)
                             : 1.0L;
                     const long double context_specificity_gate =
@@ -693,7 +775,7 @@ public:
                                              0.72L * differential_sensitivity +
                                              0.34L * anchor_fit -
                                              0.18L * attractor_pressure,
-                                         0.035L,
+                                         0.20L,
                                          1.85L)
                             : 1.0L;
                     long double score =
@@ -701,7 +783,7 @@ public:
                         (0.75L + 0.25L * bridge_fit) * reliability * context_gate *
                         contrastive_penalty * route_gain * anti_template *
                         sensitivity_gain * subspace_penalty * prompt_axis_gate *
-                        anchor_gate * context_specificity_gate;
+                        anchor_gate * context_specificity_gate * repetition_penalty;
                     if (score > 1e-12L) {
                         raw.push_back({score, i, candidate.prototype});
                     }
@@ -713,6 +795,77 @@ public:
             };
             std::partial_sort(raw.begin(), raw.begin() + std::min<std::size_t>(64, raw.size()),
                               raw.end(), by_score);
+            // Feynman Path Integral Rollout (3-step mental lookahead in phase space)
+            if (raw.size() > 1) {
+                const std::size_t rollout_candidates = std::min<std::size_t>(16, raw.size());
+                const std::size_t search_limit = std::min<std::size_t>(48, oscs_.size());
+                
+                for (std::size_t c = 0; c < rollout_candidates; ++c) {
+                    Candidate candidate = raw[c];
+                    long double path_action = 0.0L;
+                    long double discount = 1.0L;
+                    
+                    std::vector<cx> sim_fp = fp;
+                    const auto& query_1 = candidate_query(candidate);
+                    const auto bridged_1 = apply_bridge(sim_fp, candidate_transition(candidate));
+                    
+                    for (std::size_t j = 0; j < dim_; ++j) {
+                        const cx trace_j = prompt_trace.empty() ? cx(0, 0) : prompt_trace[j];
+                        sim_fp[j] = 0.38L * query_1[j] + 0.40L * bridged_1[j] + 0.22L * trace_j;
+                    }
+                    if (dimension_interference_ > 0.0L) {
+                        apply_dimensional_interference(oscs_[candidate.oscillator].token, oscs_[candidate.oscillator].padic_signature, sim_fp);
+                    }
+                    normalize_complex(sim_fp);
+                    
+                    for (std::size_t h = 0; h < 2; ++h) {
+                        long double best_next_score = 0.0L;
+                        std::size_t best_next_osc = 0;
+                        std::size_t best_next_proto = no_prototype;
+                        
+                        for (std::size_t i = 0; i < search_limit; ++i) {
+                            if (oscs_[i].token.size() <= 1) continue;
+                            const std::size_t prototypes = std::max<std::size_t>(1, oscs_[i].prototypes.size());
+                            for (std::size_t p = 0; p < prototypes; ++p) {
+                                const Candidate next_cand{0.0L, i, oscs_[i].prototypes.empty() ? no_prototype : p};
+                                const auto& next_key = candidate_key(next_cand);
+                                cx dm = 0;
+                                for (std::size_t j = 0; j < dim_; ++j) {
+                                    dm += conjugate_multiply(sim_fp[j], next_key[j]);
+                                }
+                                const long double dm_val = std::max<long double>(0.0L, static_cast<long double>(dm.real()));
+                                if (dm_val > best_next_score) {
+                                    best_next_score = dm_val;
+                                    best_next_osc = i;
+                                    best_next_proto = p;
+                                }
+                            }
+                        }
+                        
+                        const Candidate next_best{0.0L, best_next_osc, best_next_proto};
+                        const auto& query_next = candidate_query(next_best);
+                        const auto bridged_next = apply_bridge(sim_fp, candidate_transition(next_best));
+                        
+                        for (std::size_t j = 0; j < dim_; ++j) {
+                            const cx trace_j = prompt_trace.empty() ? cx(0, 0) : prompt_trace[j];
+                            sim_fp[j] = 0.38L * query_next[j] + 0.40L * bridged_next[j] + 0.22L * trace_j;
+                        }
+                        if (dimension_interference_ > 0.0L) {
+                            apply_dimensional_interference(oscs_[best_next_osc].token, oscs_[best_next_osc].padic_signature, sim_fp);
+                        }
+                        normalize_complex(sim_fp);
+                        
+                        discount *= 0.70L;
+                        path_action += discount * best_next_score;
+                    }
+                    const long double path_gate = 0.45L + 1.25L * path_action;
+                    raw[c].score = candidate.score * path_gate;
+                }
+                
+                // Re-sort after rescoring candidates via path action
+                std::partial_sort(raw.begin(), raw.begin() + std::min<std::size_t>(64, raw.size()),
+                                  raw.end(), by_score);
+            }
             std::size_t K = std::min<std::size_t>(64, raw.size());
             // lateral inhibition: suppress similar oscillators
             std::vector<Candidate> inhibited;
@@ -729,89 +882,176 @@ public:
                         n1 += complex_norm(q[j]);
                         n2 += complex_norm(qu[j]);
                     }
-                    long double sim = std::abs(cross) / (std::sqrt(n1 * n2) + 1e-30L);
+                    long double sim = std::max<long double>(0.0L, cross.real()) / (std::sqrt(n1 * n2) + 1e-30L);
                     score -= 0.3L * sim * candidate.score;  // inhibition by similarity
                 }
                 candidate.score = score;
                 inhibited.push_back(candidate);
             }
-            if (generation_temperature_ > 0.0L && inhibited.size() > 1) {
-                const std::size_t stochastic_k = std::min<std::size_t>(8, inhibited.size());
-                for (std::size_t i = 0; i < stochastic_k; ++i) {
-                    const long double scale = std::max<long double>(1.0e-12L, std::abs(inhibited[i].score));
-                    inhibited[i].score += generation_temperature_ * scale * centered_noise();
+            if (generation_temperature_ > 0.01L && inhibited.size() > 1) {
+                const std::size_t sample_k = std::min<std::size_t>(16, inhibited.size());
+                std::vector<long double> probs(sample_k);
+                for (std::size_t i = 0; i < sample_k; ++i) {
+                    long double logit = std::log(std::max<long double>(1e-15L, inhibited[i].score));
+                    probs[i] = std::exp(logit / generation_temperature_);
                 }
+                long double sum_p = 0.0L;
+                for (auto p : probs) sum_p += p;
+                
+                thread_local std::mt19937_64 local_rng(std::random_device{}());
+                std::uniform_real_distribution<long double> dist(0.0L, sum_p);
+                long double r = dist(local_rng);
+                long double running_sum = 0.0L;
+                std::size_t chosen_idx = 0;
+                for (std::size_t i = 0; i < sample_k; ++i) {
+                    running_sum += probs[i];
+                    if (r <= running_sum) {
+                        chosen_idx = i;
+                        break;
+                    }
+                }
+                if (chosen_idx > 0) {
+                    std::swap(inhibited[0], inhibited[chosen_idx]);
+                }
+            } else {
+                std::partial_sort(inhibited.begin(), inhibited.begin() + 1, inhibited.end(), by_score);
             }
-            std::partial_sort(inhibited.begin(), inhibited.begin() + 1, inhibited.end(), by_score);
             const Candidate best = inhibited[0];
             std::size_t best_i = best.oscillator;
+            history_indices.push_back(best_i);
+            if (s > 0 && previous_oscillator_index != std::numeric_limits<std::size_t>::max()) {
+                save_oscillator(previous_oscillator_index);
+                auto& prev_osc = oscs_[previous_oscillator_index];
+                const long double fast_rate = 0.20L;
+                const auto& current_key = candidate_key(best);
+                std::vector<cx> trans_step;
+                spectral_bridge_into(previous_fp, current_key, trans_step);
+                for (std::size_t j = 0; j < dim_; ++j) {
+                    prev_osc.transition[j] += fast_rate * (trans_step[j] - prev_osc.transition[j]);
+                    prev_osc.query[j] += fast_rate * (current_key[j] - prev_osc.query[j]);
+                }
+                normalize_complex(prev_osc.transition);
+                normalize_complex(prev_osc.query);
+                if (previous_prototype_index != no_prototype &&
+                    previous_prototype_index < prev_osc.prototypes.size()) {
+                    auto& proto = prev_osc.prototypes[previous_prototype_index];
+                    for (std::size_t j = 0; j < dim_; ++j) {
+                        proto.transition[j] += fast_rate * (trans_step[j] - proto.transition[j]);
+                        proto.query[j] += fast_rate * (current_key[j] - proto.query[j]);
+                    }
+                    normalize_complex(proto.transition);
+                    normalize_complex(proto.query);
+                }
+
+                // Kuramoto-Adler Phase Synchronization (Phase-Locked Loop to prompt)
+                const long double eta = 0.14L; // coupling strength to prompt
+                for (std::size_t j = 0; j < dim_; ++j) {
+                    const cx coupling = prompt_trace[j] * std::conj(previous_fp[j] * prev_osc.transition[j]);
+                    const long double diff = std::atan2(coupling.imag(), coupling.real());
+                    long double st = 0.0L, ct = 1.0L;
+                    sincos_ld(eta * diff, st, ct);
+                    prev_osc.transition[j] *= cx(ct, st);
+                }
+                
+                // Josephson Junction Phase-Locked Current (coupling to actual state phase velocity)
+                const long double g = 0.18L; // Josephson coupling strength
+                for (std::size_t j = 0; j < dim_; ++j) {
+                    const cx state_delta = fp[j] * std::conj(previous_fp[j]);
+                    const long double delta_phase = std::atan2(state_delta.imag(), state_delta.real());
+                    const long double trans_phase = std::arg(prev_osc.transition[j]);
+                    const long double diff = delta_phase - trans_phase;
+                    long double st = 0.0L, ct = 1.0L;
+                    sincos_ld(g * std::sin(diff), st, ct);
+                    prev_osc.transition[j] *= cx(ct, st);
+                }
+                normalize_complex(prev_osc.transition);
+            }
+            previous_oscillator_index = best_i;
+            previous_prototype_index = best.prototype;
+            previous_fp = fp;
+
             if (!is_subword_continuation(oscs_[best_i].token)) {
                 const auto surface = subword_surface(oscs_[best_i].token);
                 if (!out.empty()) out += ' ';
                 out += surface;
             }
             used.insert(oscs_[best_i].token);
+            recently_generated.push_back(oscs_[best_i].token);
+            if (recently_generated.size() > 16) {
+                recently_generated.erase(recently_generated.begin());
+            }
             push_active_token(oscs_[best_i].token);
-            const auto bridged = apply_bridge(fp, candidate_transition(best));
-            const auto& query = candidate_query(best);
-            const PromptAxis* active_axis = nullptr;
-            if (dimension_interference_ > 0.0L && !prompt_axes.empty()) {
-                active_axis = &prompt_axes[(s + stable_hash(oscs_[best_i].token)) % prompt_axes.size()];
-            }
+            
+            std::string prefix = std::string(text) + " " + out;
+            seed_weyl_transform_into(prefix, fp, current_padic, true, false);
+
+            // Quantum Prompt Anchoring (QPA) to keep state trapped in prompt semantic field
+            const long double alpha = 0.28L / (1.0L + 0.05L * static_cast<long double>(s));
             for (std::size_t j = 0; j < dim_; ++j) {
-                const long double trace = dimension_interference_ > 0.0L
-                                              ? 0.24L / (1.0L + 0.07L * static_cast<long double>(s))
-                                              : 0.22L / (1.0L + 0.18L * static_cast<long double>(s));
-                const long double delta_trace =
-                    dimension_interference_ > 0.0L && !prompt_delta.empty()
-                        ? std::min<long double>(0.48L, 0.14L + 1.10L * dimension_interference_) /
-                              (1.0L + 0.02L * static_cast<long double>(s))
-                        : 0.0L;
-                const long double axis_trace =
-                    active_axis != nullptr
-                        ? std::min<long double>(0.40L, 0.10L + 0.95L * dimension_interference_) /
-                              (1.0L + 0.02L * static_cast<long double>(s))
-                        : 0.0L;
-                const long double anchor_trace =
-                    dimension_interference_ > 0.0L && !prompt_anchor_field.empty()
-                        ? std::min<long double>(0.34L, 0.08L + 0.82L * dimension_interference_) /
-                              (1.0L + 0.02L * static_cast<long double>(s))
-                        : 0.0L;
-                const long double query_weight = dimension_interference_ > 0.0L ? 0.38L : 0.58L;
-                const long double bridge_weight =
-                    std::max(0.0L, 1.0L - query_weight - trace - delta_trace - axis_trace - anchor_trace);
-                fp[j] = query_weight * query[j] + bridge_weight * bridged[j] + trace * prompt_trace[j] +
-                        delta_trace * prompt_delta[j] +
-                        (active_axis != nullptr ? axis_trace * active_axis->field[j] : cx(0, 0)) +
-                        (!prompt_anchor_field.empty() ? anchor_trace * prompt_anchor_field[j] : cx(0, 0));
+                fp[j] = (1.0L - alpha) * fp[j] + alpha * prompt_trace[j];
             }
-            const auto& next_padic = candidate_next_padic(best);
-            for (std::size_t j = 0; j < std::min(current_padic.size(), next_padic.size()); ++j) {
-                const long double trace = 0.18L / (1.0L + 0.20L * static_cast<long double>(s));
-                const long double delta_trace =
-                    dimension_interference_ > 0.0L && !prompt_padic_delta.empty()
-                        ? std::min<long double>(0.32L, 0.08L + 0.66L * dimension_interference_) /
-                              (1.0L + 0.02L * static_cast<long double>(s))
-                        : 0.0L;
-                const long double axis_trace =
-                    active_axis != nullptr
-                        ? std::min<long double>(0.28L, 0.06L + 0.56L * dimension_interference_) /
-                              (1.0L + 0.02L * static_cast<long double>(s))
-                        : 0.0L;
-                const long double anchor_trace =
-                    dimension_interference_ > 0.0L && !prompt_anchor_padic.empty()
-                        ? std::min<long double>(0.24L, 0.05L + 0.48L * dimension_interference_) /
-                              (1.0L + 0.02L * static_cast<long double>(s))
-                        : 0.0L;
-                const long double next_weight =
-                    std::max(0.0L, 1.0L - trace - delta_trace - axis_trace - anchor_trace);
-                current_padic[j] = next_weight * next_padic[j] + trace * prompt_padic_trace[j] +
-                                   delta_trace * prompt_padic_delta[j] +
-                                   (active_axis != nullptr ? axis_trace * active_axis->padic[j] : 0.0L) +
-                                   (!prompt_anchor_padic.empty() ? anchor_trace * prompt_anchor_padic[j] : 0.0L);
+            normalize_complex(fp);
+
+            // Gross-Pitaevskii Concept Condensation (GPCC) to attract state to nearest active concepts
+            std::vector<cx> concept_attraction(dim_, cx(0, 0));
+            long double total_attr = 0.0L;
+            for (std::size_t i = 0; i < oscs_.size(); ++i) {
+                if (oscs_[i].token.size() <= 1) continue;
+                if (is_subword_continuation(oscs_[i].token)) continue;
+                
+                cx dot = 0;
+                for (std::size_t j = 0; j < dim_; ++j) {
+                    dot += conjugate_multiply(oscs_[i].key[j], fp[j]);
+                }
+                long double similarity = std::max<long double>(0.0L, dot.real());
+                if (similarity > 0.04L) {
+                    long double attr_weight = similarity * oscs_[i].strength / (1.0L + oscs_[i].error_ema);
+                    for (std::size_t j = 0; j < dim_; ++j) {
+                        concept_attraction[j] += attr_weight * oscs_[i].key[j];
+                    }
+                    total_attr += attr_weight;
+                }
             }
-            normalize_real(current_padic);
-            normalize();
+            if (total_attr > 0.0L) {
+                const long double mu = 0.16L; // condensation coupling strength
+                normalize_complex(concept_attraction);
+                for (std::size_t j = 0; j < dim_; ++j) {
+                    fp[j] = (1.0L - mu) * fp[j] + mu * concept_attraction[j];
+                }
+                normalize_complex(fp);
+            }
+
+            if (dimension_interference_ > 0.0L) {
+                apply_conformal_braiding(fp);
+            }
+
+            // Dynamic attractor deflection and Cubic NLSE focusing
+            if (dimension_interference_ > 0.0L) {
+                remove_attractor_projection(fp, attractor_center);
+                remove_attractor_subspace_projection(fp, attractor_basis);
+                remove_attractor_projection(current_padic, attractor_padic_center);
+                remove_attractor_subspace_projection(current_padic, attractor_padic_basis);
+                
+                // Dimensional interference coupling (cross-dimensional mixing)
+                apply_dimensional_interference(oscs_[best_i].token, oscs_[best_i].padic_signature, fp);
+                
+                // Cubic NLSE self-focusing
+                const long double norm_entropy = calculate_normalized_entropy(fp);
+                const long double kappa = 0.22L * (1.0L - 0.5L * norm_entropy);
+                for (std::size_t j = 0; j < dim_; ++j) {
+                    fp[j] += kappa * complex_norm(fp[j]) * fp[j];
+                }
+                normalize();
+            }
+        }
+        // Rollback working memory (transient Hebbian fast weights)
+        for (const auto& saved : saved_oscs) {
+            oscs_[saved.index].query = saved.query;
+            oscs_[saved.index].transition = saved.transition;
+            for (std::size_t p = 0; p < saved.proto_queries.size(); ++p) {
+                oscs_[saved.index].prototypes[p].query = saved.proto_queries[p];
+                oscs_[saved.index].prototypes[p].transition = saved.proto_transitions[p];
+            }
         }
         return out;
     }
@@ -863,6 +1103,11 @@ public:
         const auto& anchor = oscs_[found->second];
         std::vector<TokenLink> links;
         links.reserve(oscs_.size());
+        long double total_obs = 0.0L;
+        for (std::size_t i = 0; i < oscs_.size(); ++i) {
+            total_obs += static_cast<long double>(oscs_[i].observations);
+        }
+
         for (std::size_t i = 0; i < oscs_.size(); ++i) {
             if (i == found->second) {
                 continue;
@@ -874,8 +1119,9 @@ public:
             const long double padic_similarity =
                 0.5L + 0.5L * cosine(anchor.query_padic_signature, candidate.padic_signature);
             const long double reliability = 0.65L + 0.35L * std::clamp(candidate.strength / 4.0L, 0.0L, 1.0L);
+            const long double idf = std::log(1.0L + total_obs / (1.0L + static_cast<long double>(candidate.observations)));
             const long double association_score =
-                reliability *
+                idf * reliability *
                 (0.45L * next_similarity +
                  0.25L * context_similarity +
                  0.20L * transition_similarity +
@@ -1466,27 +1712,35 @@ private:
         return {lr * rr + li * ri, lr * ri - li * rr};
     }
 
-    static void sincos_ld(long double value, long double& sin_value, long double& cos_value) noexcept {
-#if defined(__GNUC__) || defined(__clang__)
-        __builtin_sincosl(value, &sin_value, &cos_value);
-#else
-        sin_value = std::sin(value);
-        cos_value = std::cos(value);
-#endif
+    static long double calculate_normalized_entropy(const std::vector<cx>& state) {
+        long double entropy = 0.0L;
+        for (const auto& v : state) {
+            const long double p = complex_norm(v);
+            if (p > 1.0e-15L) {
+                entropy -= p * std::log(p);
+            }
+        }
+        const long double max_entropy = std::log(static_cast<long double>(state.size()));
+        return max_entropy > 0.0L ? std::clamp(entropy / max_entropy, 0.0L, 1.0L) : 0.0L;
     }
 
-    void seed_weyl_transform_into(std::string_view impulse,
-                                  std::vector<cx>& ampl,
-                                  std::vector<long double>& padic,
-                                  bool enable_dimensional_interference = true,
-                                  bool allow_parallel = true) const {
+    static void sincos_ld(long double value, long double& sin_value, long double& cos_value) noexcept {
+        sin_value = std::sin(value);
+        cos_value = std::cos(value);
+    }
+
+    void seed_weyl_transform_from_signature(const std::vector<long double>& signature,
+                                            std::vector<cx>& ampl,
+                                            std::vector<long double>& padic,
+                                            std::string_view impulse_for_di,
+                                            bool enable_dimensional_interference = true,
+                                            bool allow_parallel = true) const {
         ampl.resize(dim_);
         padic.assign(dim_, 0.0L);
         if (seed_primes_.empty()) {
             return;
         }
 
-        const auto signature = field_impulse_signature(impulse, seed_primes_.size());
         std::vector<long double> seed_weight(signature.size(), 0.0L);
         long double padic_base = 0.0L;
         for (std::size_t i = 0; i < seed_primes_.size(); ++i) {
@@ -1553,8 +1807,8 @@ private:
             an = std::sqrt(an);
             for (auto& value : ampl) value /= an;
         }
-        if (enable_dimensional_interference) {
-            apply_dimensional_interference(impulse, signature, ampl);
+        if (enable_dimensional_interference && !impulse_for_di.empty()) {
+            apply_dimensional_interference(impulse_for_di, signature, ampl);
         }
         long double pn = 0.0L;
         for (auto value : padic) pn += value * value;
@@ -1562,6 +1816,15 @@ private:
             pn = std::sqrt(pn);
             for (auto& value : padic) value /= pn;
         }
+    }
+
+    void seed_weyl_transform_into(std::string_view impulse,
+                                  std::vector<cx>& ampl,
+                                  std::vector<long double>& padic,
+                                  bool enable_dimensional_interference = true,
+                                  bool allow_parallel = true) const {
+        const auto signature = field_impulse_signature(impulse, seed_primes_.size());
+        seed_weyl_transform_from_signature(signature, ampl, padic, impulse, enable_dimensional_interference, allow_parallel);
     }
 
     std::pair<std::vector<cx>, std::vector<long double>> seed_weyl_transform(std::string_view impulse,
@@ -1822,7 +2085,7 @@ private:
             projection += conjugate_multiply(center[i], values[i]);
         }
         for (std::size_t i = 0; i < count; ++i) {
-            values[i] -= projection * center[i];
+            values[i] -= 0.02L * projection * center[i];
         }
         normalize_complex(values);
     }
@@ -1838,7 +2101,7 @@ private:
             projection += values[i] * center[i];
         }
         for (std::size_t i = 0; i < count; ++i) {
-            values[i] -= projection * center[i];
+            values[i] -= 0.02L * projection * center[i];
         }
         normalize_real(values);
     }
@@ -1846,7 +2109,15 @@ private:
     static void remove_attractor_subspace_projection(std::vector<cx>& values,
                                                      const std::vector<std::vector<cx>>& basis) {
         for (const auto& axis : basis) {
-            subtract_complex_projection(values, axis);
+            const std::size_t count = std::min(values.size(), axis.size());
+            if (count == 0) continue;
+            cx projection = 0;
+            for (std::size_t i = 0; i < count; ++i) {
+                projection += conjugate_multiply(axis[i], values[i]);
+            }
+            for (std::size_t i = 0; i < count; ++i) {
+                values[i] -= 0.02L * projection * axis[i];
+            }
         }
         normalize_complex(values);
     }
@@ -1854,7 +2125,15 @@ private:
     static void remove_attractor_subspace_projection(std::vector<long double>& values,
                                                      const std::vector<std::vector<long double>>& basis) {
         for (const auto& axis : basis) {
-            subtract_real_projection(values, axis);
+            const std::size_t count = std::min(values.size(), axis.size());
+            if (count == 0) continue;
+            long double projection = 0.0L;
+            for (std::size_t i = 0; i < count; ++i) {
+                projection += values[i] * axis[i];
+            }
+            for (std::size_t i = 0; i < count; ++i) {
+                values[i] -= 0.02L * projection * axis[i];
+            }
         }
         normalize_real(values);
     }
@@ -1885,6 +2164,25 @@ private:
             energy += projection * projection;
         }
         return std::clamp(std::sqrt(energy), 0.0L, 1.0L);
+    }
+
+    void apply_conformal_braiding(std::vector<cx>& state) const {
+        if (dimension_interference_ <= 0.0L) return;
+        const long double lambda = 0.08L; // braiding strength
+        std::vector<cx> braided = state;
+        for (std::size_t j = 0; j < dim_; ++j) {
+            const std::size_t k_plus = (2 * j + 1) % dim_;
+            const std::size_t k_minus = (3 * j + 2) % dim_;
+            const long double phase_plus = std::atan2(state[k_plus].imag(), state[k_plus].real());
+            const long double phase_minus = std::atan2(state[k_minus].imag(), state[k_minus].real());
+            const long double delta_phase = phase_plus - phase_minus;
+            
+            long double st = 0.0L, ct = 1.0L;
+            sincos_ld(lambda * delta_phase, st, ct);
+            braided[j] *= cx(ct, st);
+        }
+        state = std::move(braided);
+        normalize_complex(state);
     }
 
     void apply_prompt_hamiltonian_transport(std::vector<cx>& state,
@@ -2056,7 +2354,7 @@ private:
         if (left_norm <= 1.0e-30L || right_norm <= 1.0e-30L) {
             return 0.0L;
         }
-        return std::clamp(std::abs(dot) / std::sqrt(left_norm * right_norm), 0.0L, 1.0L);
+        return std::clamp(dot.real() / std::sqrt(left_norm * right_norm), 0.0L, 1.0L);
     }
 
     static long double normalized_complex_similarity(const std::vector<cx>& left, const std::vector<cx>& right) {
@@ -2068,7 +2366,7 @@ private:
         for (std::size_t i = 0; i < count; ++i) {
             dot += conjugate_multiply(left[i], right[i]);
         }
-        return std::clamp(std::abs(dot), 0.0L, 1.0L);
+        return std::clamp(dot.real(), 0.0L, 1.0L);
     }
 
     static void spectral_bridge_into(const std::vector<cx>& from,
@@ -2118,7 +2416,7 @@ private:
         if (projected_norm <= 1.0e-30L || target_norm <= 1.0e-30L) {
             return 0.0L;
         }
-        return std::clamp(std::abs(dot) / std::sqrt(projected_norm * target_norm), 0.0L, 1.0L);
+        return std::clamp(dot.real() / std::sqrt(projected_norm * target_norm), 0.0L, 1.0L);
     }
 
     static void mix_negative_key(std::vector<cx>& negative_key,

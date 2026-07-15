@@ -323,6 +323,16 @@ int main(int argc, char** argv) {
             std::cout << "model_saved=" << options.save_model_path.string() << "\n";
         }
         print_generation_block(field, "after", prompts, options.tokens);
+        const std::vector<std::string> test_words{"robot", "car", "bear", "family"};
+        for (const auto& w : test_words) {
+            std::cout << "nearest_links_" << w << "=";
+            auto links = field.nearest_token_links(w, 12);
+            for (std::size_t i = 0; i < links.size(); ++i) {
+                if (i > 0) std::cout << ",";
+                std::cout << links[i].token;
+            }
+            std::cout << "\n";
+        }
         std::cout << "dzeta_train_smoke_end\n";
         return 0;
     } catch (const std::exception& exc) {
