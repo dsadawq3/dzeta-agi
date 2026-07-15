@@ -418,6 +418,7 @@ src/
 benchmarks/
   train_smoke.cpp        CPU training benchmark
   inspect_model.cpp      Saved-model inspection tool
+  evaluate_baselines.py  Baseline comparison (Word2Vec/TF-IDF)
   logs/                  Selected experiment logs
 
 docs/
