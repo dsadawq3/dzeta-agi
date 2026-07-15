@@ -406,12 +406,7 @@ src/
     code_memory.h        Token memory and resonance subword traces
     field_state.h        FieldState projection state
     handle.h             Prime handle structure
-    information.h        Information metrics
-    langlands.h          Finite Langlands-style signatures
-    padic.h              p-adic utilities
     primes.h             Prime generation
-    quantum_chaos.h      Spectral diagnostics
-    variational_core.h   Field energy and attractor descent
     zeta_rhythm.h        Riemann-Siegel theta and zeta rhythm
     zeta_zeros.h         Precomputed zeta-zero table
 
@@ -436,6 +431,7 @@ tests/
 tools/
   fetch_hf_text_sample.py
   build_mixed_hf_corpus.py
+  generate_mermaid_graph.py
 ```
 
 ## Build
