@@ -698,10 +698,10 @@ public:
                             : 0.0L;
                     const long double field_drive =
                         dimension_interference_ > 0.0L
-                            ? std::max<long double>(std::max<long double>(0.0L, static_cast<long double>(dm.real())),
+                            ? std::max<long double>(static_cast<long double>(std::abs(dm)),
                                                     (0.16L + 1.85L * dimension_interference_) *
                                                         differential_drive)
-                            : std::max<long double>(0.0L, static_cast<long double>(dm.real()));
+                            : static_cast<long double>(std::abs(dm));
                     const long double context_gate =
                         dimension_interference_ > 0.0L
                             ? std::clamp(0.10L + 1.50L * lexical_match + 1.15L * prompt_specificity,
@@ -833,7 +833,7 @@ public:
                                 for (std::size_t j = 0; j < dim_; ++j) {
                                     dm += conjugate_multiply(sim_fp[j], next_key[j]);
                                 }
-                                const long double dm_val = std::max<long double>(0.0L, static_cast<long double>(dm.real()));
+                                const long double dm_val = static_cast<long double>(std::abs(dm));
                                 if (dm_val > best_next_score) {
                                     best_next_score = dm_val;
                                     best_next_osc = i;
@@ -1013,8 +1013,12 @@ public:
                 }
             }
             if (total_attr > 0.0L) {
-                const long double mu = 0.16L; // condensation coupling strength
+                const long double mu = dimension_interference_ > 0.0L ? 0.015L : 0.16L; // damp condensation under interference
                 normalize_complex(concept_attraction);
+                if (dimension_interference_ > 0.0L) {
+                    remove_attractor_projection(concept_attraction, attractor_center);
+                    remove_attractor_subspace_projection(concept_attraction, attractor_basis);
+                }
                 for (std::size_t j = 0; j < dim_; ++j) {
                     fp[j] = (1.0L - mu) * fp[j] + mu * concept_attraction[j];
                 }
@@ -2354,7 +2358,7 @@ private:
         if (left_norm <= 1.0e-30L || right_norm <= 1.0e-30L) {
             return 0.0L;
         }
-        return std::clamp(dot.real() / std::sqrt(left_norm * right_norm), 0.0L, 1.0L);
+        return std::clamp(std::abs(dot) / std::sqrt(left_norm * right_norm), 0.0L, 1.0L);
     }
 
     static long double normalized_complex_similarity(const std::vector<cx>& left, const std::vector<cx>& right) {
@@ -2366,7 +2370,7 @@ private:
         for (std::size_t i = 0; i < count; ++i) {
             dot += conjugate_multiply(left[i], right[i]);
         }
-        return std::clamp(dot.real(), 0.0L, 1.0L);
+        return std::clamp(std::abs(dot), 0.0L, 1.0L);
     }
 
     static void spectral_bridge_into(const std::vector<cx>& from,
@@ -2416,7 +2420,7 @@ private:
         if (projected_norm <= 1.0e-30L || target_norm <= 1.0e-30L) {
             return 0.0L;
         }
-        return std::clamp(dot.real() / std::sqrt(projected_norm * target_norm), 0.0L, 1.0L);
+        return std::clamp(std::abs(dot) / std::sqrt(projected_norm * target_norm), 0.0L, 1.0L);
     }
 
     static void mix_negative_key(std::vector<cx>& negative_key,

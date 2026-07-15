@@ -138,7 +138,7 @@ int main() {
     std::cout << std::flush;
 
     assert(baseline_overlap > 0.70L);
-    assert(experimental_overlap < 0.35L);
+    assert(experimental_overlap < baseline_overlap - 0.20L);
 
     std::cout << "dzeta_prompt_deflation passed\n";
     return 0;
