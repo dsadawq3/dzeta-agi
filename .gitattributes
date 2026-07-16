@@ -1,2 +1,3 @@
-# Hide Python files from GitHub Language Statistics, making the repo show 100% C++
-*.py linguist-detectable=false
+# Exclude auxiliary tools and benchmark scripts from core language statistics (since they are helper assets, not core library code)
+tools/* linguist-documentation=true
+benchmarks/*.py linguist-documentation=true
