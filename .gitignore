@@ -1,7 +1,51 @@
+# CMake and build directories
 build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+targets/
+.cmake/
+
+# Compiled binaries and object files
 *.exe
+*.elf
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+dzeta_*
 
-.DS_Store
-
+# Models and data dumps (avoid committing large binary artifacts)
+*.bin
+*.dzeta.bin
 benchmarks/data/
 benchmarks/models/
+
+# OS-specific garbage
+.DS_Store
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.user
+*.ncb
+*.opensdf
+*.sdf
+*.sublime-project
+*.sublime-workspace
+
+# Python temporary files and virtual environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+env/
