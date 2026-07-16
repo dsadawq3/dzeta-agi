@@ -1,0 +1,2 @@
+# Hide Python files from GitHub Language Statistics, making the repo show 100% C++
+*.py linguist-detectable=false

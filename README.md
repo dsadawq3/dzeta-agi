@@ -1,5 +1,9 @@
 # DZETA AGI
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/compiler_support/20)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#build)
+
 DZETA is a C++20 research core for a CPU-first, math-driven intelligence system.
 
 The long-term goal is ambitious: safe AGI that is useful to humanity and accessible on ordinary hardware, not only inside centralized GPU clusters. This repository is not a finished AGI product and does not claim to solve intelligence today. It is an open research system for testing whether compact spectral memory, prime-indexed state, online oscillator dynamics, contrastive routing, and prompt-conditioned field geometry can produce useful language-like structure without copying the standard Transformer stack.
