@@ -17,6 +17,7 @@ struct Options {
     std::size_t tokens = 16;
     std::vector<std::string> inspect_tokens;
     std::vector<std::string> prompts;
+    long double temperature = -1.0L;  // < 0 keeps the model's saved value
 };
 
 std::size_t parse_size(std::string_view value) {
@@ -30,7 +31,7 @@ void print_usage() {
     std::cout
         << "Usage: dzeta_inspect_model --model PATH [--top N]\n"
         << "                           [--token WORD ...] [--prompt TEXT ...]\n"
-        << "                           [--tokens N]\n";
+        << "                           [--tokens N] [--temperature X]\n";
 }
 
 Options parse_options(int argc, char** argv) {
@@ -57,6 +58,8 @@ Options parse_options(int argc, char** argv) {
             options.inspect_tokens.emplace_back(require_value(arg));
         } else if (arg == "--prompt") {
             options.prompts.emplace_back(require_value(arg));
+        } else if (arg == "--temperature") {
+            options.temperature = std::stold(require_value(arg));
         } else {
             throw std::runtime_error("unknown argument: " + std::string(arg));
         }
@@ -113,6 +116,9 @@ int main(int argc, char** argv) {
         const auto options = parse_options(argc, argv);
         dzeta::OscillatorField field;
         field.load_model(options.model_path.string());
+        if (options.temperature >= 0.0L) {
+            field.set_generation_temperature(options.temperature);
+        }
 
         std::cout << "dzeta_inspect_model_begin\n";
         std::cout << "model_path=" << options.model_path.string() << "\n";

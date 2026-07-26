@@ -62,26 +62,122 @@ inline long double field_unit_from_hash(std::uint64_t value) {
     return static_cast<long double>(value % 1'000'003ULL) / 1'000'003.0L;
 }
 
+// ---- Multi-scale damped-oscillator context waves -------------------------
+//
+// The context signature is a translation-invariant function of the RECENT
+// query-token stream: a token now at distance d from the stream end
+// contributes lambda_h^d * Rot(omega_h * d) * wave(token) across three
+// damped rotating-oscillator banks (fast/mid/slow horizons). The token wave
+// itself carries NO position term, so the same word yields the same base
+// wave at every offset; order and distance are encoded by the smooth
+// per-block rotations (RoPE-style frequency spread), and old context decays
+// exponentially instead of shifting every later position into a foreign
+// pseudo-random basis. The previous absolute-position seeding made a
+// context trained at offset k statistically independent of the identical
+// context at any other offset — no position transfer, and word salad once
+// generation ran past trained line lengths.
+// Constants tuned by direct kernel measurement (see the 2026-07-26 sweep in
+// the experiments log): shift-transfer 0.94, reversed-order similarity 0.75,
+// one-insertion 0.98, unrelated floor 0.20 at width 64.
+inline constexpr long double kWaveHorizonLen[3] = {4.0L, 12.0L, 48.0L};
+inline constexpr long double kWaveHorizonTheta[3] = {0.90L, 0.30L, 0.075L};
+inline constexpr long double kWaveHorizonMix[3] = {0.60L, 0.25L, 0.15L};
+inline constexpr long double kWaveFrequencySpread = 0.125L;
+
+// Position-free token wave: exactly the old per-token formula minus the
+// absolute-position XOR.
+inline void field_token_wave(std::string_view token, std::size_t width, long double* out) {
+    std::uint64_t seed = stable_hash(token);
+    for (std::size_t j = 0; j < width; ++j) {
+        out[j] = 2.0L * field_unit_from_hash(splitmix64(seed)) - 1.0L;
+    }
+}
+
+class FieldWaveAccumulator {
+public:
+    explicit FieldWaveAccumulator(std::size_t width)
+        : width_(width), blocks_(width / 2) {
+        for (std::size_t h = 0; h < 3; ++h) {
+            lambda_[h] = std::exp(-1.0L / kWaveHorizonLen[h]);
+            // Energy-equalized gains: each bank's steady-state amplitude is
+            // ~1/sqrt(1 - lambda^2), so this makes the mix weights the true
+            // energy shares. Only ratios matter (final L2 normalize).
+            gain_[h] = kWaveHorizonMix[h] * std::sqrt(1.0L - lambda_[h] * lambda_[h]);
+            state_[h].assign(width, 0.0L);
+            cos_omega_[h].resize(blocks_);
+            sin_omega_[h].resize(blocks_);
+            for (std::size_t k = 0; k < blocks_; ++k) {
+                const long double spread =
+                    blocks_ > 1
+                        ? std::pow(kWaveFrequencySpread,
+                                   static_cast<long double>(k) /
+                                       static_cast<long double>(blocks_ - 1))
+                        : 1.0L;
+                const long double omega = kWaveHorizonTheta[h] * spread;
+                cos_omega_[h][k] = std::cos(omega);
+                sin_omega_[h][k] = std::sin(omega);
+            }
+        }
+    }
+
+    void push_wave(const long double* wave) {
+        for (std::size_t h = 0; h < 3; ++h) {
+            auto& state = state_[h];
+            const long double lambda = lambda_[h];
+            for (std::size_t k = 0; k < blocks_; ++k) {
+                const long double a = state[2 * k];
+                const long double b = state[2 * k + 1];
+                const long double c = cos_omega_[h][k];
+                const long double s = sin_omega_[h][k];
+                // Rotate the OLD state before adding the new wave, so a
+                // token at distance d has been rotated exactly d times.
+                state[2 * k] = lambda * (a * c - b * s) + wave[2 * k];
+                state[2 * k + 1] = lambda * (a * s + b * c) + wave[2 * k + 1];
+            }
+            if ((width_ & 1U) != 0U && width_ > 0) {
+                state[width_ - 1] = lambda * state[width_ - 1] + wave[width_ - 1];
+            }
+        }
+    }
+
+    void signature_into(std::vector<long double>& signature) const {
+        signature.assign(width_, 0.0L);
+        for (std::size_t j = 0; j < width_; ++j) {
+            signature[j] = gain_[0] * state_[0][j] + gain_[1] * state_[1][j] +
+                           gain_[2] * state_[2][j];
+        }
+        const long double norm = std::sqrt(std::inner_product(signature.begin(), signature.end(),
+                                                              signature.begin(), 0.0L));
+        if (norm > 1.0e-18L) {
+            for (auto& item : signature) {
+                item /= norm;
+            }
+        }
+    }
+
+private:
+    std::size_t width_;
+    std::size_t blocks_;
+    long double lambda_[3] = {0.0L, 0.0L, 0.0L};
+    long double gain_[3] = {0.0L, 0.0L, 0.0L};
+    std::vector<long double> state_[3];
+    std::vector<long double> cos_omega_[3];
+    std::vector<long double> sin_omega_[3];
+};
+
 inline std::vector<long double> field_impulse_signature(std::string_view text, std::size_t width) {
     std::vector<long double> signature(width, 0.0L);
     if (width == 0) {
         return signature;
     }
     const auto tokens = tokenize_query(text);
-    for (std::size_t i = 0; i < tokens.size(); ++i) {
-        std::uint64_t seed = stable_hash(tokens[i]) ^ (0x9e3779b97f4a7c15ULL * (i + 1U));
-        for (std::size_t j = 0; j < width; ++j) {
-            const long double wave = 2.0L * field_unit_from_hash(splitmix64(seed)) - 1.0L;
-            signature[j] += wave / std::sqrt(static_cast<long double>(tokens.size()));
-        }
+    FieldWaveAccumulator accumulator(width);
+    std::vector<long double> wave(width, 0.0L);
+    for (const auto& token : tokens) {
+        field_token_wave(token, width, wave.data());
+        accumulator.push_wave(wave.data());
     }
-    const long double norm = std::sqrt(std::inner_product(signature.begin(), signature.end(),
-                                                          signature.begin(), 0.0L));
-    if (norm > 1.0e-18L) {
-        for (auto& item : signature) {
-            item /= norm;
-        }
-    }
+    accumulator.signature_into(signature);
     return signature;
 }
 

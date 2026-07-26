@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -28,6 +29,22 @@ inline bool is_identifier_body(unsigned char ch) {
 
 inline bool is_subword_continuation(std::string_view token) {
     return token.size() > 2 && token[0] == '#' && token[1] == '#';
+}
+
+// Structural tokens: punctuation and short operators that carry syntax
+// (parentheses, colons, comparison/assignment operators). They are trainable
+// and emittable, unlike free-form single characters.
+inline bool is_structural_token(std::string_view token) {
+    if (token.empty() || token.size() > 2) {
+        return false;
+    }
+    constexpr std::string_view structural_chars = "()[]{}:,.=+-*/<>%&|^!;'\"";
+    for (const char ch : token) {
+        if (structural_chars.find(ch) == std::string_view::npos) {
+            return false;
+        }
+    }
+    return true;
 }
 
 inline std::string_view subword_surface(std::string_view token) {
@@ -173,8 +190,21 @@ inline std::vector<std::string> tokenize_code(std::string_view text, std::size_t
         }
         if (is_identifier_start(ch)) {
             const std::size_t begin = i++;
-            while (i < text.size() && is_identifier_body(static_cast<unsigned char>(text[i]))) {
-                ++i;
+            while (i < text.size()) {
+                const unsigned char body = static_cast<unsigned char>(text[i]);
+                if (is_identifier_body(body)) {
+                    ++i;
+                    continue;
+                }
+                // An apostrophe with alnum on both sides stays inside the
+                // word (contractions/possessives like "doesn't"), so prose
+                // never opens a string literal mid-sentence.
+                if (body == '\'' && i + 1 < text.size() &&
+                    std::isalnum(static_cast<unsigned char>(text[i + 1])) != 0) {
+                    ++i;
+                    continue;
+                }
+                break;
             }
             const auto word = text.substr(begin, i - begin);
             const auto pieces = split_word_resonance(word);
@@ -199,28 +229,13 @@ inline std::vector<std::string> tokenize_code(std::string_view text, std::size_t
             tokens.emplace_back(text.substr(begin, i - begin));
             continue;
         }
-        if (ch == '\'' || ch == '"') {
-            const char quote = static_cast<char>(ch);
-            ++i;
-            bool escaped = false;
-            while (i < text.size()) {
-                const char current = text[i++];
-                if (escaped) {
-                    escaped = false;
-                    continue;
-                }
-                if (current == '\\') {
-                    escaped = true;
-                    continue;
-                }
-                if (current == quote) {
-                    break;
-                }
-            }
-            tokens.emplace_back("\"...\"");
-            continue;
-        }
-
+        // Quotes are ordinary punctuation. The old string-literal branch
+        // swallowed everything between two quote characters into a "..."
+        // placeholder; for prose that meant an apostrophe in one contraction
+        // consumed whole clauses up to the next apostrophe, and the words
+        // inside quoted dialogue were never lexed, never embedded, and never
+        // trainable — silently breaking the learn/forward token-stream
+        // parity the wave kernel depends on.
         if (i + 1 < text.size()) {
             const std::string two{text.substr(i, 2)};
             if (two == "==" || two == "!=" || two == "<=" || two == ">=" || two == "->" ||

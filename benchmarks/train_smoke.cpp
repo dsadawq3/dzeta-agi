@@ -8,6 +8,8 @@
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -37,6 +39,7 @@ struct Options {
     std::size_t threads = 0;
     std::size_t parallel_min_dimensions = 2048;
     bool shuffle_lines = false;
+    bool save_compact = false;
     std::filesystem::path save_model_path;
     std::filesystem::path load_model_path;
 };
@@ -53,7 +56,7 @@ void print_usage() {
         << "                         [--update-noise X] [--random-init-scale X]\n"
         << "                         [--dim-interference X]\n"
         << "                         [--save-model PATH] [--load-model PATH]\n"
-        << "                         [--autosave-seconds N]\n";
+        << "                         [--autosave-seconds N] [--save-compact]\n";
 }
 
 std::size_t parse_size(std::string_view value) {
@@ -125,6 +128,8 @@ Options parse_options(int argc, char** argv) {
             options.parallel_min_dimensions = parse_size(require_value(arg));
         } else if (arg == "--shuffle-lines") {
             options.shuffle_lines = true;
+        } else if (arg == "--save-compact") {
+            options.save_compact = true;
         } else if (arg == "--save-model") {
             options.save_model_path = require_value(arg);
         } else if (arg == "--load-model") {
@@ -178,7 +183,9 @@ std::uint64_t entropy64() {
            (tick * 0x9e3779b97f4a7c15ULL);
 }
 
-void save_model_atomically(const dzeta::OscillatorField& field, const std::filesystem::path& path) {
+void save_model_atomically(const dzeta::OscillatorField& field,
+                           const std::filesystem::path& path,
+                           bool compact) {
     if (path.empty()) {
         return;
     }
@@ -187,20 +194,76 @@ void save_model_atomically(const dzeta::OscillatorField& field, const std::files
     }
     auto temporary = path;
     temporary += ".tmp";
-    field.save_model(temporary.string());
+    field.save_model(temporary.string(), compact);
     std::error_code error;
     std::filesystem::remove(path, error);
     std::filesystem::rename(temporary, path);
+}
+
+std::set<std::string> output_words(const std::string& text) {
+    std::string normalized;
+    normalized.reserve(text.size());
+    for (unsigned char ch : text) {
+        if (std::isalnum(ch) != 0) {
+            normalized.push_back(static_cast<char>(std::tolower(ch)));
+        } else {
+            normalized.push_back(' ');
+        }
+    }
+    std::istringstream input(normalized);
+    std::set<std::string> words;
+    std::string token;
+    while (input >> token) {
+        if (token.size() > 1) {
+            words.insert(token);
+        }
+    }
+    return words;
+}
+
+// Mean pairwise word-set overlap across prompt outputs: the attractor-collapse
+// metric the regression test uses, surfaced in every benchmark run so collapse
+// is visible in logs instead of anecdotes.
+double mean_prompt_overlap(const std::vector<std::string>& outputs) {
+    std::vector<std::set<std::string>> word_sets;
+    word_sets.reserve(outputs.size());
+    for (const auto& output : outputs) {
+        word_sets.push_back(output_words(output));
+    }
+    double total = 0.0;
+    std::size_t pairs = 0;
+    for (std::size_t i = 0; i < word_sets.size(); ++i) {
+        for (std::size_t j = i + 1; j < word_sets.size(); ++j) {
+            if (word_sets[i].empty() || word_sets[j].empty()) {
+                ++pairs;
+                continue;
+            }
+            std::size_t shared = 0;
+            for (const auto& word : word_sets[i]) {
+                if (word_sets[j].count(word) != 0) {
+                    ++shared;
+                }
+            }
+            total += static_cast<double>(shared) /
+                     static_cast<double>(std::min(word_sets[i].size(), word_sets[j].size()));
+            ++pairs;
+        }
+    }
+    return pairs == 0 ? 0.0 : total / static_cast<double>(pairs);
 }
 
 void print_generation_block(dzeta::OscillatorField& field,
                             std::string_view label,
                             const std::vector<std::string>& prompts,
                             std::size_t tokens) {
+    std::vector<std::string> outputs;
+    outputs.reserve(prompts.size());
     for (std::size_t i = 0; i < prompts.size(); ++i) {
+        outputs.push_back(field.forward(prompts[i], tokens));
         std::cout << label << "_prompt_" << (i + 1) << "=" << prompts[i] << "\n";
-        std::cout << label << "_output_" << (i + 1) << "=" << field.forward(prompts[i], tokens) << "\n";
+        std::cout << label << "_output_" << (i + 1) << "=" << outputs.back() << "\n";
     }
+    std::cout << label << "_prompt_overlap=" << mean_prompt_overlap(outputs) << "\n";
 }
 
 } // namespace
@@ -295,7 +358,7 @@ int main(int argc, char** argv) {
                     next_progress = now + std::chrono::seconds(options.progress_seconds);
                 }
                 if (options.autosave_seconds != 0 && !options.save_model_path.empty() && now >= next_autosave) {
-                    save_model_atomically(field, options.save_model_path);
+                    save_model_atomically(field, options.save_model_path, options.save_compact);
                     std::cerr << "autosave_model=" << options.save_model_path.string()
                               << " elapsed_ms="
                               << std::chrono::duration_cast<std::chrono::milliseconds>(now - started).count()
@@ -319,7 +382,7 @@ int main(int argc, char** argv) {
         std::cout << "contrastive_updates_after=" << field.contrastive_update_count() << "\n";
         std::cout << "mean_loss_after=" << static_cast<double>(field.mean_loss()) << "\n";
         if (!options.save_model_path.empty()) {
-            save_model_atomically(field, options.save_model_path);
+            save_model_atomically(field, options.save_model_path, options.save_compact);
             std::cout << "model_saved=" << options.save_model_path.string() << "\n";
         }
         print_generation_block(field, "after", prompts, options.tokens);
