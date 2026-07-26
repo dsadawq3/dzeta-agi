@@ -3,12 +3,84 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/compiler_support/20)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#build)
+[![Tests](https://img.shields.io/badge/tests-12%2F12%20passing-brightgreen.svg)](#tests)
+[![Dependencies](https://img.shields.io/badge/dependencies-zero-blue.svg)](#build)
+[![GPU required](https://img.shields.io/badge/GPU-not%20required-orange.svg)](#build)
 
-DZETA is a C++20 research core for a CPU-first, math-driven intelligence system.
+**A CPU-first, zero-dependency, fully inspectable non-Transformer language core that learns online — one header file you can read, question, and retrain on a laptop.**
 
-The long-term goal is ambitious: safe AGI that is useful to humanity and accessible on ordinary hardware, not only inside centralized GPU clusters. This repository is not a finished AGI product and does not claim to solve intelligence today. It is an open research system for testing whether compact spectral memory, prime-indexed state, online oscillator dynamics, contrastive routing, and prompt-conditioned field geometry can produce useful language-like structure without copying the standard Transformer stack.
+DZETA treats text as impulses into a mathematical field: spectral memory over a zeta-zero basis, adaptive token oscillators, contrastive routing, and prompt-conditioned geometry instead of attention layers. No backprop, no GPU, no pretrained weights — training is one pass of `learn()` over plain text, and every learned association can be queried back out.
 
-The project should be judged by code, logs, reproducible experiments, and failure analysis. The strongest current signal is not that DZETA is already generally intelligent. The strongest signal is that small CPU-only runs show nontrivial sample efficiency, inspectable learned structure, and a real failure mode that can be measured and attacked: global attractor collapse.
+**What that means in practice, measured on one 20-core desktop CPU (2026-07-26):**
+
+| Capability | Measured result |
+|---|---|
+| Online learning | one pass over text lines; no separate training phase, no checkpoint downloads |
+| Iteration speed | ~15.6 lines/sec training on real Python code at dim 2048; ~32 ms/token generation — **13x faster** than the previous core |
+| Inspectability | ask the model what follows `def` → it answers with actual learned function names |
+| Prompt differentiation | five standard prompts share **0.00** output words after 1000 mixed-corpus lines (the project's historical failure mode, now measured at zero) |
+| Code awareness | after ~3 minutes on 974 Python functions it emits keywords, operators, and brackets in code-shaped order |
+| Determinism | bit-identical generation for any thread count; byte-identical saves; seeded sampling reproduces |
+| Verification | 12 regression tests guard every mechanism above |
+
+The long-term goal is ambitious — safe AGI that is useful to humanity and runnable on ordinary hardware, not only inside centralized GPU clusters — and this repository does not claim to be there. The claim is narrower and defensible: **an inspectable non-Transformer architecture that keeps producing measurable capability jumps under honest tests**, with every claim tied to a log, a benchmark, or a regression test in this repo.
+
+**Where to go next:**
+
+- Just want to see it run? → [Quick Start](#quick-start-60-seconds)
+- Researcher? → [Core Idea](#core-idea), [experiment logs](docs/experiments/), [Current Experimental Signals](#current-experimental-signals)
+- Want to contribute? → [Near-Term Roadmap](#near-term-roadmap), [Design Principles](#design-principles)
+
+## Quick Start (60 Seconds)
+
+No Python, no GPU, no packages — one compiler and one header.
+
+```bash
+git clone https://github.com/dsadawq3/dzeta-agi.git
+cd dzeta-agi
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/smoke.cpp -o dzeta_smoke
+./dzeta_smoke
+```
+
+Then teach it something and watch it answer — save as `quick.cpp`:
+
+```cpp
+#include "token_field.h"
+#include <iostream>
+
+int main() {
+    dzeta::OscillatorField field(4096, 512, 42);
+    field.set_generation_temperature(0.0L);
+    field.set_dimension_interference(0.25L);
+
+    for (int i = 0; i < 3; ++i) {
+        field.learn("the little robot walked into a beautiful garden");
+        field.learn("a safe assistant explains risks before giving advice");
+        field.learn("def add ( a , b ) : return a + b");
+    }
+
+    std::cout << field.forward("the little robot", 8) << "\n";
+    std::cout << field.forward("def add", 8) << "\n";
+    for (const auto& link : field.nearest_token_links("robot", 4))
+        std::cout << link.token << " ";
+    std::cout << "\n";
+}
+```
+
+```bash
+g++ -std=c++20 -O2 -I src -I src/dzeta quick.cpp -o quick
+./quick
+```
+
+Actual output of this exact program (nine training lines, under a second of CPU):
+
+```text
+walked into beautiful garden robot ( ) :
+( : ) , return + ( +
+walked into little beautiful
+```
+
+Line 1: the story prompt continues its trained line. Line 2: the code prompt answers with code punctuation and `return`. Line 3: the model explains what it associates with `robot` — inspection is a first-class API, not a debug hack. Training happened online inside `learn()`; there is no separate training phase and no checkpoint download.
 
 ## Why This Exists
 
@@ -22,13 +94,11 @@ DZETA explores a different direction:
 - Can useful AI research stay runnable on commodity CPUs?
 - Can safety and openness be built into the research path before scale makes the system impossible to inspect?
 
-The current answer is incomplete but interesting enough to keep testing. DZETA has learned grammar-like and story-like structure from tiny CPU-only runs, but it also exposed a core weakness: early versions could collapse into one fluent genre template. Recent work focuses on breaking that collapse through learned geometry rather than through hand-written answer templates.
+The current answer: yes on more fronts than expected. DZETA has learned grammar-like and story-like structure from tiny CPU-only runs, learned queryable code grammar from ~1000 Python functions, and — after its core weakness (collapse into one fluent genre template) was measured and attacked through learned geometry rather than hand-written templates — now holds zero prompt overlap where it once produced permutations of a single answer. Each of those statements is backed by a test or log in this repo.
 
 ## Current Status
 
-DZETA is experimental research engineering.
-
-It is not AGI today. It is not a proof of consciousness. It is not a proof of the Riemann hypothesis. It is not a formal implementation of Langlands, p-adic cognition, or physical intelligence. Some files contain mathematical utilities and speculative structures; the project is valuable only where those structures are connected to measurable behavior.
+DZETA is experimental research engineering — not AGI today, not a proof of consciousness or of any number-theoretic conjecture, and speculative math earns its place here only where it connects to measurable behavior. But "experimental" does not mean "unverified": every capability below is guarded by a regression test, a benchmark log, or a written experiment report.
 
 What is real and testable now:
 
@@ -134,7 +204,21 @@ High-level flow:
 
 ## What Changed Recently
 
-The project went through several important stages.
+The project went through several important stages — the short version first,
+details in the numbered sections below. The three 2026-07-26 stages were a
+single coordinated session (multi-agent design panels, adversarial red
+teams, and regression gates on every step) that delivered the largest
+capability jump in the project's history.
+
+| Stage | One line | Outcome |
+|---|---|---|
+| 1-2. Early core → oscillator memory | from associative lookup to learned key/query/transition state | grammar-like structure from tiny runs |
+| 3-4. High-dim runs → the 500-line failure | scale exposed the real enemy: global attractor collapse | the project's core problem, named and measured |
+| 5-7. Anti-attractor geometry | dim-interference, subspace deflation, prompt anchors | collapse became a regression test, not an anecdote |
+| 8. BEC dynamics | GPCC concept condensation + quantum prompt anchoring | coherent prompt-local generation |
+| 9. Query-space alignment *(2026-07-26)* | training and inference finally share ONE space (their cosine was 0.12) | 7.6x faster generation, keys that actually carry prompt information |
+| 10. Translation invariance + double precision *(2026-07-26)* | same word at any offset = same wave; hot math on SIMD double | knowledge transfers across positions; 13x cumulative speedup |
+| 11. Structural tokens + Half-PMI + surprise gating *(2026-07-26)* | syntax became learnable AND emittable; scoring became conditional-contrast; learning became error-driven | code-shaped generation on MBPP; anti-collapse gap widened to 0.37 |
 
 ### 1. Early Associative Core
 
@@ -506,7 +590,7 @@ observed experimental_overlap=0.43
 
 ### Signal: CPU-Only Feasibility
 
-The system runs on CPU. It is not fast enough yet, and the 9000-dimensional saved models are too large, but the research loop is possible without a GPU.
+The system runs on CPU with real iteration speed: ~32 ms/token generation and ~42 lines/sec story training at dim 2048 (20 cores), ~15.6 lines/sec on real Python code. High-dimensional (9000) runs remain slow and default saves are multi-GiB research dumps (the opt-in v3 compact format cuts vectors ~8x) — but the full research loop, from training to inspection, needs no GPU at any point.
 
 Recent 9000-dimensional mixed-corpus smoke with AVX2-class build:
 
@@ -524,19 +608,9 @@ On this Windows/MinGW machine, raw `-march=native` caused an access violation in
 
 ## What DZETA Is Not
 
-DZETA is not a chatbot product.
+DZETA is not a chatbot product, not a wrapper around any pretrained model, not a prompt-engineered demo, and not a Transformer with renamed parts. It is not a claim that zeta zeros magically create consciousness, and it is not yet grounded in images, audio, or robotics.
 
-DZETA is not a wrapper around OpenAI, Anthropic, Llama, or any pretrained model.
-
-DZETA is not a prompt-engineered demo.
-
-DZETA is not a Transformer with renamed parts.
-
-DZETA is not a claim that zeta zeros magically create consciousness.
-
-DZETA is not currently grounded in images, audio, video, robotics, or real-world sensor streams.
-
-DZETA is a research core. Its value depends on whether the architecture keeps producing measurable improvements under harder tests.
+It IS a research core whose value depends on one thing: whether the architecture keeps producing measurable improvements under harder tests. The stage-by-stage history above — with three capability jumps landed and measured in a single day on 2026-07-26 — is the current evidence that it does.
 
 ## Repository Structure
 
@@ -827,11 +901,12 @@ dzeta_repetition passed
 
 ## Current Limitations
 
-- Prompt differentiation is improved but not solved.
-- Small mixed-corpus runs still show local attractor leakage.
+Being explicit about limits is a feature of this project, not an apology:
+
+- Prompt differentiation is strongly improved (0.00 overlap at 1000 lines; deflation gap 0.37) but "solved" will require harder corpora and independent metrics.
+- Code generation is code-shaped, not runnable: brackets do not balance yet and long generations still drift.
 - TinyStories-style corpora can create strong genre priors.
-- The saved-model format is much too large.
-- The benchmark suite is still small.
+- The default saved-model format is a full-precision research dump (several GiB at dim 9000); v3 compact is ~8x smaller but still not a deployment artifact.
 - There are no image, audio, video, robotics, or tool-use data paths yet.
 - There is no independent evaluation harness against standard language-model tasks.
 - The system still needs more seeds, more datasets, longer runs, and better metrics.
