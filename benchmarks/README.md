@@ -42,7 +42,7 @@ g++ -std=c++20 -O2 -Wall -Wextra -pedantic \
   -o dzeta_train_smoke
 ```
 
-For local CPU benchmarking on Windows/MinGW, use the AVX2-class `x86-64-v3` profile. On some CPUs, raw `-march=native` can enable wider instructions that are unstable with this long-double spectral path.
+For local CPU benchmarking on Windows/MinGW, use the AVX2-class `x86-64-v3` profile. On some CPUs, raw `-march=native` enabled wider instructions that were unstable with the historical long-double spectral path; the hot path now defaults to double (`DZETA_REAL`, overridable with `-DDZETA_REAL="long double"`), but the conservative profile remains the recommended default.
 
 ```bash
 g++ -std=c++20 -O3 -march=x86-64-v3 -Wall -Wextra -pedantic \
@@ -128,14 +128,28 @@ Threading notes:
 - `--threads 0` uses hardware concurrency.
 - `--threads N` fixes the field-level worker count.
 - `--parallel-min-dim N` controls when dimension-range parallelism starts.
-- On long-double spectral runs, more logical CPUs do not always scale linearly; 8-12 threads may be close to the useful limit on some CPUs.
+- The generation and training hot paths are parallel and bit-deterministic
+  for any thread count; scaling was measured near-linear up to 16 threads on
+  the double-precision path (see `docs/experiments/2026-07-26-*.md`).
+
+Output notes:
+
+- Each generation block also prints `<label>_prompt_overlap=`, the mean
+  pairwise word-set overlap across the five standard prompts — the same
+  attractor-collapse metric the regression test asserts on.
+- `dzeta_inspect_model` accepts `--temperature X` to override the saved
+  generation temperature (use `0` for repeatable greedy inspection).
 
 Persistence notes:
 
 - `--save-model PATH` writes the learned oscillator field to disk after the run.
+- `--save-compact` switches the save to the v3 compact format (per-vector
+  int16 quantization, roughly 8x smaller, auto-detected by the loader).
 - `--load-model PATH` resumes from a saved oscillator field before applying runtime CLI settings.
 - `--autosave-seconds N` periodically rewrites the save path during long runs.
 - Saved models live under `benchmarks/models/` by convention and are ignored by git because high-dimensional fields can be very large.
+- Models saved before 2026-07-26 load but live in the old absolute-position
+  key space; retrain to benefit from the translation-invariant kernel.
 
 Inspect a saved model:
 
