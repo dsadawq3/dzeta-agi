@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: "DZETA: a CPU-first, inspectable non-Transformer language core that learns online"
+message: "If you use this software or build on its experiments, please cite it as below."
+type: software
+authors:
+  - name: "Rhamz (dsadawq3)"
+repository-code: "https://github.com/dsadawq3/dzeta-agi"
+license: MIT
+date-released: "2026-07-26"
+version: "0.3.0"
+keywords:
+  - language-model
+  - non-transformer
+  - online-learning
+  - cpu
+  - spectral-memory
+  - interpretability
+  - hyperdimensional-computing

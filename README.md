@@ -1,5 +1,6 @@
 # DZETA AGI
 
+[![CI](https://github.com/dsadawq3/dzeta-agi/actions/workflows/ci.yml/badge.svg)](https://github.com/dsadawq3/dzeta-agi/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/compiler_support/20)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#build)
@@ -931,6 +932,22 @@ Being explicit about limits is a feature of this project, not an apology:
 8. Explore byte/subword resonance without turning the architecture into
    BPE-template generation.
 9. Keep all claims tied to logs and tests.
+
+## How You Can Help
+
+This is a solo research project competing with billion-dollar labs on one
+axis they cannot occupy: radical inspectability on commodity hardware. The
+highest-leverage help, in order:
+
+1. **Run the zeta-vs-random ablation** ([CONTRIBUTING.md](CONTRIBUTING.md)
+   has the protocol) — the single most important unanswered question here.
+2. **Reproduce an experiment on your machine** and report numbers, especially
+   Linux and ARM.
+3. **Try your own corpus** — the harnesses take any line-based text file.
+4. **Break something measurably** — a corpus that defeats the anti-collapse
+   geometry is worth more than praise.
+5. If the direction interests you, a star genuinely helps other people find
+   the project.
 
 ## Research Hypothesis
 
