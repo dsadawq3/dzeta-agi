@@ -1,5 +1,5 @@
 #pragma once
-
+// ── zeta_rhythm — theta, rhythm, spectral, spacing ───────────────────
 #include "zeta_zeros.h"
 
 #include <algorithm>
@@ -27,6 +27,7 @@ inline long double phase_distance(long double left, long double right) {
     return std::abs(wrap_phase(left - right));
 }
 
+// ── Riemann-Siegel theta (asymptotic + Lanczos) ─────────────────────
 inline long double riemann_siegel_theta_asymptotic(long double t) {
     if (t <= 0.0L) {
         return 0.0L;
@@ -77,6 +78,7 @@ inline long double riemann_siegel_theta_from_log_gamma(long double t) {
     return theta;
 }
 
+// ── Zeta rhythm / phase ─────────────────────────────────────────────
 inline std::complex<long double> zeta_rhythm(std::uint32_t prime,
                                              long double tick_time,
                                              std::size_t zeros_to_use = zeta_zero_count()) {
@@ -105,6 +107,7 @@ inline bool phase_coherent(std::uint32_t left_prime,
                           zeta_phase(right_prime, tick_time, zeros_to_use)) < epsilon;
 }
 
+// ── Spectral energy ─────────────────────────────────────────────────
 inline long double spectral_energy(std::uint32_t prime,
                                    std::size_t zeros_to_use = zeta_zero_count()) {
     const std::size_t limit = std::min(zeros_to_use, zeta_zero_count());
@@ -118,6 +121,7 @@ inline long double spectral_energy(std::uint32_t prime,
 
 inline long double riemann_siegel_theta(long double t);
 
+// ── Zero spacing statistics ─────────────────────────────────────────
 struct ZeroSpacingStatistics {
     std::size_t start_index = 0;
     std::size_t count = 0;

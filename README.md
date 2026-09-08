@@ -4,11 +4,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/compiler_support/20)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#build)
-[![Tests](https://img.shields.io/badge/tests-12%2F12%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-13%2F13%20passing-brightgreen.svg)](#tests)
 [![Dependencies](https://img.shields.io/badge/dependencies-zero-blue.svg)](#build)
 [![GPU required](https://img.shields.io/badge/GPU-not%20required-orange.svg)](#build)
 
-**A CPU-first, zero-dependency, fully inspectable non-Transformer language core that learns online — one header file you can read, question, and retrain on a laptop.**
+**A CPU-first, zero-dependency, fully inspectable non-Transformer language core that learns online — modular C++20 headers you can read, question, and retrain on a laptop.**
 
 DZETA treats text as impulses into a mathematical field: spectral memory over a zeta-zero basis, adaptive token oscillators, contrastive routing, and prompt-conditioned geometry instead of attention layers. No backprop, no GPU, no pretrained weights — training is one pass of `learn()` over plain text, and every learned association can be queried back out.
 
@@ -22,7 +22,7 @@ DZETA treats text as impulses into a mathematical field: spectral memory over a 
 | Prompt differentiation | five standard prompts share **0.00** output words after 1000 mixed-corpus lines (the project's historical failure mode, now measured at zero) |
 | Code awareness | after ~3 minutes on 974 Python functions it emits keywords, operators, and brackets in code-shaped order |
 | Determinism | bit-identical generation for any thread count; byte-identical saves; seeded sampling reproduces |
-| Verification | 12 regression tests guard every mechanism above |
+| Verification | 13 regression tests guard every mechanism above |
 
 The long-term goal is ambitious — safe AGI that is useful to humanity and runnable on ordinary hardware, not only inside centralized GPU clusters — and this repository does not claim to be there. The claim is narrower and defensible: **an inspectable non-Transformer architecture that keeps producing measurable capability jumps under honest tests**, with every claim tied to a log, a benchmark, or a regression test in this repo.
 
@@ -126,7 +126,11 @@ What is real and testable now:
 - **Structural tokens**: punctuation and operators as first-class, trainable, emittable oscillators;
 - **Half-PMI conditional-contrast scoring** replacing raw frequency/length punishment;
 - **Surprise-gated discriminative learning** (delta-rule flavored, prototype-level credit assignment);
-- **Code learning demo on MBPP** (974 Python functions) with measured keyword and syntax emission.
+- **Code learning demo on MBPP** (974 Python functions) with measured keyword and syntax emission;
+- **Adelic 9-wave Gross-Pitaevskii accumulator** (3 temporal horizons $\times$ 3 $p$-adic branches: $p \in \{2, 3, 5\}$) with Strang symplectic phase rotation;
+- **Non-Archimedean ultrametric coupling** ($J_{p,q} = 1/\max(p, q)$) and dimension-scaled machine precision guards ($N \cdot \varepsilon \cdot 10$);
+- **Decoupled leaf utilities and exception-safe parallel thread pool** (`RangeThreadPool`) with generation synchronization;
+- **Non-Archimedean ultrametric regression suite** (`tests/padic.cpp`) verifying $p$-adic valuation, ultrametric inequality, and 9-wave norm conservation.
 
 What is still not solved and represents active limitations:
 
@@ -220,6 +224,7 @@ capability jump in the project's history.
 | 9. Query-space alignment *(2026-07-26)* | training and inference finally share ONE space (their cosine was 0.12) | 7.6x faster generation, keys that actually carry prompt information |
 | 10. Translation invariance + double precision *(2026-07-26)* | same word at any offset = same wave; hot math on SIMD double | knowledge transfers across positions; 13x cumulative speedup |
 | 11. Structural tokens + Half-PMI + surprise gating *(2026-07-26)* | syntax became learnable AND emittable; scoring became conditional-contrast; learning became error-driven | code-shaped generation on MBPP; anti-collapse gap widened to 0.37 |
+| 12. Adelic waves + modular math helpers + thread pool | 9-wave (3 horizons × 3 p-adic branches) Gross-Pitaevskii accumulator with Strang symplectic phase rotation; decoupled math helpers & exception-safe thread pool | Ultrametric p-adic context hierarchy, finite-epsilon numerical guards, zero thread-pool leak |
 
 ### 1. Early Associative Core
 
@@ -524,6 +529,55 @@ collapses into one degenerate loop for every prompt and has no
 generalization. Details:
 `docs/experiments/2026-07-26-mbpp-code-learning.md`.
 
+### 12. Adelic Wave Dynamics, Symplectic Strang Splitting & Numerical Hardening
+
+A fourth major architectural upgrade replaced the single-scale complex oscillator banks with a non-Archimedean multi-prime hierarchy: **Adelic Wave Dynamics** (`src/dzeta/field_state.h`). While Stage 10 introduced multi-scale decay across 3 temporal horizons ($L \in \{4, 12, 48\}$), all waves shared a single standard Archimedean frequency domain. In Stage 12, the state space expands into an adelic cross-product of 3 temporal horizons and 3 $p$-adic prime branches ($p \in \{2, 3, 5\}$), yielding a 9-wave concurrent accumulator ($3L \times 3p$).
+
+Key mathematical and systems components:
+
+- **Adelic 9-Wave Field Accumulator (`FieldWaveAdelicAccumulator`)**:
+  Each token impulse updates 9 independent rotating wave states $\psi_{h, p} \in \mathbb{C}^{W/2}$. Damping factors and dispersion frequencies are parameterized by both the horizon length $L_h$ and the prime $p$:
+  $$\lambda_{h, p} = \exp\left(-\frac{p}{L_h}\right), \quad \omega_{h, p}(k) = \frac{\theta_h}{p} \cdot \text{spread}(k)$$
+  where $\text{spread}(k) = \text{spread}_{\text{base}}^{k / (B - 1)}$ provides RoPE-style intra-block frequency spreading. Each branch receives an energy-equalized adelic gain:
+  $$g_{h, p} = \frac{1}{p} \cdot m_h \sqrt{1 - \lambda_{h, p}^2}$$
+  Higher primes experience sharper temporal localization (faster exponential decay) and tighter phase winding, creating a multiscale ultrametric hierarchy of context representations.
+
+- **Non-Archimedean Ultrametric Coupling ($J_{p, q}$)**:
+  Coupling between prime branches is governed by the non-Archimedean ultrametric distance kernel:
+  $$J_{p, q} = \frac{1}{\max(p, q)}$$
+  Unlike Euclidean metrics where all branches interact symmetrically, ultrametric coupling enforces hierarchical dominance: branch $p=2$ (the dyadic fundamental) couples strongly to all branches ($J_{2,2} = 1/2$, $J_{2,3} = 1/3$, $J_{2,5} = 1/5$), while higher prime branches interact with reduced cross-talk.
+
+- **Symplectic Strang Splitting for Nonlinear Gross-Pitaevskii Interaction**:
+  The cubic Gross-Pitaevskii interaction term $i \kappa \sum_q J_{p, q} |\psi_q|^2 \psi_p$ ($\kappa = 0.18$) is integrated via second-order symplectic Strang operator splitting. The update separates into:
+  1. A linear propagation step applying damping $\lambda_{h, p}$, frequency rotation $\text{Rot}(\omega_{h, p})$, and surprise-scaled token wave impulse $s \cdot \vec{w}$;
+  2. An exact nonlinear phase rotation step:
+     $$\psi_{h, p} \leftarrow \psi_{h, p} \cdot \exp\left(i \cdot \kappa \sum_{q \in \{2, 3, 5\}} J_{p, q} |\psi_{h, q}|^2\right)$$
+  Because the nonlinear phase operator is purely imaginary in the exponent, it conserves $|\psi_{h, p}|^2$ bit-identically across all blocks, avoiding norm explosion or numerical dissipation while imparting nonlinear phase shifts driven by cross-prime resonance.
+
+- **Decoupled Architecture & Modular Math Helpers (`src/dzeta/math_helpers.h`)**:
+  Common mathematical utilities are extracted into an isolated leaf header:
+  - 64-bit deterministic hash routines: `stable_hash` (FNV-1a 64-bit) and `splitmix64`;
+  - Generic vector normalization: `normalize_complex_generic` and `normalize_real_generic`;
+  - Inner-product similarity: `cosine_generic` and `normalized_cosine_generic`.
+  This eliminates circular dependencies between `sat.h`, `field_state.h`, and `token_field.h`.
+
+- **Finite Precision Guards & Machine-Epsilon Scaling**:
+  Arbitrary magic thresholds (e.g. `1e-30`, `1e-18L`) across normalization and cosine functions are replaced with dimension-scaled floating-point limits:
+  $$\text{threshold} = \text{dim} \cdot \varepsilon \cdot 10$$
+  Every normalization and inner-product pass incorporates explicit `std::isfinite` guards. Subnormal floats, NaNs, and infinities are intercepted at the boundary before they can poison running accumulators or cosine similarities.
+
+- **Exception-Safe Parallelism (`src/dzeta/thread_pool.h`)**:
+  The internal worker orchestration is encapsulated into `RangeThreadPool`:
+  - Worker threads synchronize via generation-counted condition variables, preventing spurious wakeups;
+  - Task ranges are partitioned into contiguous balanced chunks;
+  - Exceptions thrown within worker threads are caught via `std::current_exception()`, held in thread-safe storage, and re-thrown on the calling thread via `std::rethrow_exception()` upon task join, guaranteeing zero silent worker crashes and deadlock-free destruction.
+
+- **Verified Ultrametric Regression Suite (`tests/padic.cpp`)**:
+  A dedicated regression test verifies the mathematical properties:
+  - Exact $p$-adic valuation $\|p^k\|_p = p^{-k}$ across $p \in \{2, 3, 5\}$;
+  - Strict non-Archimedean ultrametric inequality $\|x + y\|_p \le \max(\|x\|_p, \|y\|_p)$;
+  - Conservation and normalization properties of `field_impulse_adelic_signature`.
+
 ## Current Experimental Signals
 
 ### Signal: Sample Efficiency
@@ -585,8 +639,8 @@ The current overlap test:
 ```text
 baseline overlap > 0.70 required
 experimental overlap < baseline overlap - 0.20 required
-observed baseline_overlap=0.80
-observed experimental_overlap=0.43
+observed baseline_overlap=0.86
+observed experimental_overlap=0.46
 ```
 
 ### Signal: CPU-Only Feasibility
@@ -622,11 +676,14 @@ src/
   sat.h                  Query/SAT landscape helpers
   dzeta/
     code_memory.h        Token memory and resonance subword traces
-    field_state.h        FieldState projection state
+    field_state.h        FieldState projection state & Adelic Gross-Pitaevskii accumulator
     handle.h             Prime handle structure
-    primes.h             Prime generation
+    math_helpers.h       Decoupled stable hashing, normalization & cosine helpers
+    primes.h             Prime generation & twin-prime checks
+    thread_pool.h        Exception-safe RangeThreadPool worker orchestration
     zeta_rhythm.h        Riemann-Siegel theta and zeta rhythm
     zeta_zeros.h         Precomputed zeta-zero table
+    README.md            Internal file map and dependency guide
 
 benchmarks/
   train_smoke.cpp        CPU training benchmark
@@ -650,6 +707,7 @@ tests/
   wave_invariance.cpp
   translation_transfer.cpp
   repetition.cpp
+  padic.cpp              Ultrametric p-adic norm and adelic 9-wave verification
 
 tools/
   fetch_hf_text_sample.py
@@ -704,8 +762,8 @@ Expected output (values drift as the core evolves; the assertions are
 baseline > 0.70 and experimental < baseline - 0.20):
 
 ```text
-baseline_overlap=0.80
-experimental_overlap=0.43
+baseline_overlap=0.86
+experimental_overlap=0.46
 dzeta_prompt_deflation passed
 ```
 
@@ -870,9 +928,10 @@ g++ -std=c++20 -O2 -I src -I src/dzeta tests/determinism.cpp -o dzeta_determinis
 g++ -std=c++20 -O2 -I src -I src/dzeta tests/wave_invariance.cpp -o dzeta_wave_invariance && ./dzeta_wave_invariance
 g++ -std=c++20 -O2 -I src -I src/dzeta tests/translation_transfer.cpp -o dzeta_translation_transfer && ./dzeta_translation_transfer
 g++ -std=c++20 -O2 -I src -I src/dzeta tests/repetition.cpp -o dzeta_repetition && ./dzeta_repetition
+g++ -std=c++20 -O2 -I src -I src/dzeta tests/padic.cpp -o dzeta_padic && ./dzeta_padic
 ```
 
-Recent local verification (2026-07-26):
+Recent local verification:
 
 ```text
 dzeta_smoke passed
@@ -882,13 +941,14 @@ dzeta_persistence passed
 dzeta_persistence_v3 passed
 dzeta_stochastic passed
 dzeta_tokenizer passed
-baseline_overlap=0.80
-experimental_overlap=0.43
+baseline_overlap=0.86
+experimental_overlap=0.46
 dzeta_prompt_deflation passed
 dzeta_determinism passed
-dzeta_wave_invariance passed
+dzeta_wave_invariance passed: shift=0.95 order=0.74 horizon=1.00
 dzeta_translation_transfer passed
 dzeta_repetition passed
+dzeta_padic passed: ultrametric and adelic 9-wave verification successful
 ```
 
 ## Design Principles
@@ -917,9 +977,10 @@ Being explicit about limits is a feature of this project, not an apology:
 1. Run mixed-corpus A/B tests at 30, 60, 144, and 500 lines with the
    translation-invariant kernel (the runner now logs `*_prompt_overlap`).
 2. Inspect prompt-anchor neighborhoods before and after training.
-3. Revive the p-adic channel: the current projection fills it with a
-   constant, so its ~10 scoring terms are candidate-independent; a
-   lag-valuation order code was designed and should land as its own change.
+3. Wire the 9-wave adelic signature directly into candidate routing scores:
+   the kernel (`field_impulse_adelic_signature`) and ultrametric coupling
+   are landed and tested; the next step is routing integration inside
+   `OscillatorField::score_candidate()`.
 4. Incremental forward-side signature accumulator (currently the full
    prompt+output prefix is re-tokenized per emitted token).
 5. Gradient-free adaptive encoder (distributional wave refinement) — spec

@@ -7,7 +7,7 @@ on:
 
 jobs:
   tests:
-    name: Build and run all 12 regression tests
+    name: Build and run all 13 regression tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -18,7 +18,7 @@ jobs:
         run: |
           set -e
           mkdir -p build_ci
-          for t in smoke learning parallel persistence persistence_v3 stochastic tokenizer prompt_deflation determinism wave_invariance translation_transfer repetition; do
+          for t in smoke learning parallel persistence persistence_v3 stochastic tokenizer prompt_deflation determinism wave_invariance translation_transfer repetition padic; do
             echo "=== $t ==="
             g++ -std=c++20 -O2 -I src -I src/dzeta tests/$t.cpp -o build_ci/dzeta_$t
             ./build_ci/dzeta_$t

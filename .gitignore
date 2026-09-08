@@ -1,5 +1,6 @@
 # CMake and build directories
 build/
+build*/
 build_test/
 CMakeFiles/
 CMakeCache.txt
@@ -7,6 +8,11 @@ cmake_install.cmake
 Makefile
 targets/
 .cmake/
+
+# Tooling, logs, and temp editor stores
+.agent-teams/
+.dsh-trash/
+.dsh_better_edit/
 
 # Compiled binaries and object files
 *.exe

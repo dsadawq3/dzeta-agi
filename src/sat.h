@@ -1,4 +1,7 @@
 #pragma once
+// ── sat — tokenize_query, sat_from_query ────────────────────────────
+
+#include "dzeta/math_helpers.h"
 
 #include <algorithm>
 #include <cctype>
@@ -8,7 +11,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-
 namespace dzeta {
 
 struct SatClause {
@@ -26,22 +28,7 @@ struct ComplexitySpectrum {
     long double temperature_hint = 0.05L;
 };
 
-inline std::uint64_t stable_hash(std::string_view text) {
-    std::uint64_t hash = 1469598103934665603ULL;
-    for (const unsigned char ch : text) {
-        hash ^= ch;
-        hash *= 1099511628211ULL;
-    }
-    return hash;
-}
-
-inline std::uint64_t splitmix64(std::uint64_t& x) {
-    std::uint64_t z = (x += 0x9e3779b97f4a7c15ULL);
-    z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9ULL;
-    z = (z ^ (z >> 27U)) * 0x94d049bb133111ebULL;
-    return z ^ (z >> 31U);
-}
-
+// stable_hash / splitmix64 — см. dzeta/math_helpers.h
 inline std::vector<std::string> tokenize_query(std::string_view query) {
     std::vector<std::string> tokens;
     std::string current;

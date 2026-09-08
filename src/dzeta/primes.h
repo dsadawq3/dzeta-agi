@@ -1,4 +1,5 @@
 #pragma once
+// ── primes — простые числа, решето, twin ─────────────────────────────
 
 #include <algorithm>
 #include <cmath>
@@ -65,7 +66,6 @@ inline std::vector<std::uint32_t> generate_first_primes(std::size_t count) {
         limit *= 2;
     }
 }
-
 inline std::uint32_t twin_prime_of(std::uint32_t prime) {
     const std::uint64_t candidate = static_cast<std::uint64_t>(prime) + 2ULL;
     if (candidate <= UINT32_MAX && is_prime(candidate)) {
@@ -74,6 +74,7 @@ inline std::uint32_t twin_prime_of(std::uint32_t prime) {
     return 0;
 }
 
+// ── twin check ────────────────────────────────────────────────────────
 inline bool has_twin_prime(std::uint32_t prime) {
     return twin_prime_of(prime) != 0;
 }

@@ -85,6 +85,10 @@ add_executable(dzeta_persistence_v3 tests/persistence_v3.cpp)
 target_link_libraries(dzeta_persistence_v3 PRIVATE dzeta_core)
 add_test(NAME dzeta_persistence_v3 COMMAND dzeta_persistence_v3)
 
+add_executable(dzeta_padic tests/padic.cpp)
+target_link_libraries(dzeta_padic PRIVATE dzeta_core)
+add_test(NAME dzeta_padic COMMAND dzeta_padic)
+
 # Tests verify exclusively through assert(); keep it active in every
 # configuration so a Release ctest run cannot pass vacuously (the built-in
 # Release flags define NDEBUG, which compiles assert away).
@@ -92,7 +96,7 @@ set(DZETA_TEST_TARGETS
     dzeta_smoke dzeta_learning dzeta_parallel dzeta_persistence
     dzeta_stochastic dzeta_tokenizer dzeta_prompt_deflation dzeta_determinism
     dzeta_wave_invariance dzeta_translation_transfer dzeta_repetition
-    dzeta_persistence_v3)
+    dzeta_persistence_v3 dzeta_padic)
 foreach(dzeta_test_target IN LISTS DZETA_TEST_TARGETS)
     if(MSVC)
         target_compile_options(${dzeta_test_target} PRIVATE /UNDEBUG)

@@ -121,21 +121,24 @@ public:
     }
 
     void push_wave(const long double* wave) {
+        push_wave(wave, 1.0L);
+    }
+    void push_wave(const long double* wave, long double surprise) {
+        surprise = std::clamp(surprise, 0.22L, 1.60L);
         for (std::size_t h = 0; h < 3; ++h) {
             auto& state = state_[h];
             const long double lambda = lambda_[h];
+            const long double lambda_att = lambda * (0.94L + 0.08L * (surprise - 0.22L) / (1.38L));
             for (std::size_t k = 0; k < blocks_; ++k) {
                 const long double a = state[2 * k];
                 const long double b = state[2 * k + 1];
                 const long double c = cos_omega_[h][k];
                 const long double s = sin_omega_[h][k];
-                // Rotate the OLD state before adding the new wave, so a
-                // token at distance d has been rotated exactly d times.
-                state[2 * k] = lambda * (a * c - b * s) + wave[2 * k];
-                state[2 * k + 1] = lambda * (a * s + b * c) + wave[2 * k + 1];
+                state[2 * k] = lambda_att * (a * c - b * s) + surprise * wave[2 * k];
+                state[2 * k + 1] = lambda_att * (a * s + b * c) + surprise * wave[2 * k + 1];
             }
             if ((width_ & 1U) != 0U && width_ > 0) {
-                state[width_ - 1] = lambda * state[width_ - 1] + wave[width_ - 1];
+                state[width_ - 1] = lambda_att * state[width_ - 1] + surprise * wave[width_ - 1];
             }
         }
     }
@@ -148,7 +151,7 @@ public:
         }
         const long double norm = std::sqrt(std::inner_product(signature.begin(), signature.end(),
                                                               signature.begin(), 0.0L));
-        if (norm > 1.0e-18L) {
+        if (std::isfinite(norm) && norm > static_cast<long double>(width_) * std::numeric_limits<long double>::epsilon() * 10.0L) {
             for (auto& item : signature) {
                 item /= norm;
             }
@@ -164,6 +167,144 @@ private:
     std::vector<long double> cos_omega_[3];
     std::vector<long double> sin_omega_[3];
 };
+
+// ---- Adelc 9-wave (3L x 3p) Gross-Pitaevskii accumulator -----------------
+// 3 horizons L=4/12/48 x 3 p-adic branches p=2/3/5 => 9 waves.
+// lambda_{h,p}=exp(-p/h), omega_{h,p}=Theta[h]*(1/p)*spread, J=1/max(p,q) ultrametric,
+// cubic kappa|psi|²psi Strang symplectic exp(i*kappa|psi|²) as phase rotation (real: scaling).
+inline constexpr std::uint32_t kAdelicPrimes[3] = {2, 3, 5};
+inline constexpr long double kAdelicKappa = 0.18L;
+
+inline long double adelic_J(std::uint32_t p, std::uint32_t q) {
+    return 1.0L / static_cast<long double>(std::max(p, q));
+}
+
+class FieldWaveAdelicAccumulator {
+public:
+    explicit FieldWaveAdelicAccumulator(std::size_t width)
+        : width_(width), blocks_(width / 2) {
+        for (std::size_t h = 0; h < 3; ++h) {
+            for (std::size_t pi = 0; pi < 3; ++pi) {
+                const long double pVAL = static_cast<long double>(kAdelicPrimes[pi]);
+                lambda_[h][pi] = std::exp(-pVAL / kWaveHorizonLen[h]);
+                const long double base_gain = kWaveHorizonMix[h] * std::sqrt(1.0L - lambda_[h][pi] * lambda_[h][pi]);
+                gain_[h][pi] = base_gain / pVAL; // 1/p adelic normalization
+                state_[h][pi].assign(width, 0.0L);
+                cos_omega_[h][pi].resize(blocks_);
+                sin_omega_[h][pi].resize(blocks_);
+                for (std::size_t k = 0; k < blocks_; ++k) {
+                    const long double spread = blocks_ > 1 ? std::pow(kWaveFrequencySpread, static_cast<long double>(k) / static_cast<long double>(blocks_ - 1)) : 1.0L;
+                    const long double omega = kWaveHorizonTheta[h] * spread / pVAL;
+                    cos_omega_[h][pi][k] = std::cos(omega);
+                    sin_omega_[h][pi][k] = std::sin(omega);
+                }
+            }
+        }
+    }
+
+    // surprise gates wave (0.22..1.60), cubic via Strang phase
+    void push_wave(const long double* wave, long double surprise = 1.0L) {
+        // linear step: lambda*rot + surprise*wave for each h,p
+        for (std::size_t h = 0; h < 3; ++h) {
+            for (std::size_t pi = 0; pi < 3; ++pi) {
+                auto& state = state_[h][pi];
+                const long double lambda = lambda_[h][pi];
+                for (std::size_t k = 0; k < blocks_; ++k) {
+                    const long double a = state[2 * k];
+                    const long double b = state[2 * k + 1];
+                    const long double c = cos_omega_[h][pi][k];
+                    const long double s = sin_omega_[h][pi][k];
+                    state[2 * k] = lambda * (a * c - b * s) + surprise * wave[2 * k];
+                    state[2 * k + 1] = lambda * (a * s + b * c) + surprise * wave[2 * k + 1];
+                }
+                if ((width_ & 1U) != 0U && width_ > 0) {
+                    state[width_ - 1] = lambda * state[width_ - 1] + surprise * wave[width_ - 1];
+                }
+            }
+        }
+        // Strang symplectic cubic: per-block phase rotation J-coupled (preserves |psi|)
+        for (std::size_t h = 0; h < 3; ++h) {
+            for (std::size_t k = 0; k < blocks_; ++k) {
+                for (std::size_t pi = 0; pi < 3; ++pi) {
+                    long double sum = 0.0L;
+                    for (std::size_t qi = 0; qi < 3; ++qi) {
+                        const long double pv = static_cast<long double>(kAdelicPrimes[pi]);
+                        const long double qv = static_cast<long double>(kAdelicPrimes[qi]);
+                        const long double jval = adelic_J(static_cast<std::uint32_t>(pv), static_cast<std::uint32_t>(qv));
+                        const long double qa = state_[h][qi][2 * k];
+                        const long double qb = (2 * k + 1 < width_) ? state_[h][qi][2 * k + 1] : 0.0L;
+                        sum += jval * (qa * qa + qb * qb);
+                    }
+                    const long double theta = kAdelicKappa * sum;
+                    const long double c = std::cos(theta);
+                    const long double s = std::sin(theta);
+                    auto& state_p = state_[h][pi];
+                    const long double a = state_p[2 * k];
+                    const long double b = state_p[2 * k + 1];
+                    state_p[2 * k] = a * c - b * s;
+                    state_p[2 * k + 1] = a * s + b * c;
+                }
+            }
+            if ((width_ & 1U) != 0U && width_ > 0) {
+                const std::size_t j = width_ - 1;
+                for (std::size_t pi = 0; pi < 3; ++pi) {
+                    long double sum = 0.0L;
+                    for (std::size_t qi = 0; qi < 3; ++qi) {
+                        const long double pv = static_cast<long double>(kAdelicPrimes[pi]);
+                        const long double qv = static_cast<long double>(kAdelicPrimes[qi]);
+                        const long double jval = adelic_J(static_cast<std::uint32_t>(pv), static_cast<std::uint32_t>(qv));
+                        sum += jval * state_[h][qi][j] * state_[h][qi][j];
+                    }
+                    state_[h][pi][j] *= std::cos(kAdelicKappa * sum);
+                }
+            }
+        }
+    }
+
+    void push_adelic_wave(const long double* wave, long double surprise = 1.0L) {
+        push_wave(wave, surprise);
+    }
+
+    void signature_into(std::vector<long double>& signature) const {
+        signature.assign(width_, 0.0L);
+        for (std::size_t j = 0; j < width_; ++j) {
+            long double acc = 0.0L;
+            for (std::size_t h = 0; h < 3; ++h) {
+                for (std::size_t pi = 0; pi < 3; ++pi) {
+                    acc += gain_[h][pi] * state_[h][pi][j];
+                }
+            }
+            signature[j] = acc;
+        }
+        const long double norm = std::sqrt(std::inner_product(signature.begin(), signature.end(), signature.begin(), 0.0L));
+        if (std::isfinite(norm) && norm > static_cast<long double>(width_) * std::numeric_limits<long double>::epsilon() * 10.0L) {
+            for (auto& item : signature) item /= norm;
+        }
+    }
+
+private:
+    std::size_t width_;
+    std::size_t blocks_;
+    long double lambda_[3][3] = {};
+    long double gain_[3][3] = {};
+    std::vector<long double> state_[3][3];
+    std::vector<long double> cos_omega_[3][3];
+    std::vector<long double> sin_omega_[3][3];
+};
+
+inline std::vector<long double> field_impulse_adelic_signature(std::string_view text, std::size_t width) {
+    std::vector<long double> signature(width, 0.0L);
+    if (width == 0) return signature;
+    const auto tokens = tokenize_query(text);
+    FieldWaveAdelicAccumulator acc(width);
+    std::vector<long double> wave(width, 0.0L);
+    for (const auto& token : tokens) {
+        field_token_wave(token, width, wave.data());
+        acc.push_adelic_wave(wave.data(), 1.0L);
+    }
+    acc.signature_into(signature);
+    return signature;
+}
 
 inline std::vector<long double> field_impulse_signature(std::string_view text, std::size_t width) {
     std::vector<long double> signature(width, 0.0L);
@@ -195,7 +336,7 @@ inline long double field_cosine_similarity(const std::vector<long double>& left,
         left_norm += left[i] * left[i];
         right_norm += right[i] * right[i];
     }
-    if (left_norm <= 1.0e-18L || right_norm <= 1.0e-18L) {
+    if (!std::isfinite(left_norm) || !std::isfinite(right_norm) || left_norm <= static_cast<long double>(count) * std::numeric_limits<long double>::epsilon() * std::numeric_limits<long double>::epsilon() || right_norm <= static_cast<long double>(count) * std::numeric_limits<long double>::epsilon() * std::numeric_limits<long double>::epsilon()) {
         return 0.0L;
     }
     return std::clamp(dot / std::sqrt(left_norm * right_norm), -1.0L, 1.0L);
