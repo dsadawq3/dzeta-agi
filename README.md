@@ -33,10 +33,17 @@ DZETA treats text as impulses into a mathematical field: spectral memory over a 
 <a id="core-idea--architecture"></a>
 ## Core Idea & Architecture
 
-DZETA explores a fundamental mathematical alternative to the Transformer architecture:
-- **No Attention Layers:** Routing text through high-dimensional spectral wave fields and adaptive oscillators rather than dense matrix attention blocks.
-- **Pure CPU-First:** Online training and generation run directly on standard CPU cores without external model weights, Python runtimes, or GPU clusters.
-- **Radical Inspectability:** Model memory is transparent; semantic associations (`nearest_token_links`) and learned phases are directly extractable from state.
+Modern AI progress is concentrated behind large Transformer models on massive GPU clusters. DZETA explores a fundamentally different architectural path:
+- **Can intelligence-like structure emerge from a compact mathematical field rather than deep matrix stacks?**
+- **Can a model learn online continuously from small amounts of text while keeping internal memory 100% inspectable?**
+- **Can high-dimensional mathematical physics (spectral waves, Bose-Einstein condensation, and p-adic valuations) guide routing without becoming a Transformer clone?**
+- **Can useful AGI research stay runnable and retrainable on commodity laptop CPUs?**
+
+### Architectural Pillars
+
+- **No Attention Layers:** Text is routed through high-dimensional spectral wave fields and adaptive oscillators rather than dense quadratic attention blocks.
+- **Pure CPU-First:** Online training and generation execute directly on CPU cores without external weights, Python dependencies, or GPU hardware.
+- **Radical Inspectability:** Model memory is transparent; semantic associations (`nearest_token_links`) and learned phase states are directly extractable from state.
 - **Streaming Online Learning (`learn()`):** Continuous single-pass accumulation of memory without epochs, backpropagation, or gigabyte checkpoints.
 
 ### Core Dataflow (`src/token_field.h`)
@@ -50,7 +57,7 @@ DZETA explores a fundamental mathematical alternative to the Transformer archite
    - **context prototypes**: discrete clusters capturing multiple local meanings of the same token;
    - **contrastive negative memory**: repelling competing hard-negative candidates.
 4. **Generation Routing:** Next-token selection is framed as a field routing problem combining spectral resonance, Half-PMI conditional-contrast scoring, attractor subspace deflation, and Quantum Prompt Anchoring (QPA).
-5. **State Inspection:** Querying learned representations via `benchmarks/inspect_model.cpp`.
+5. **State Inspection:** Direct inspection of learned representations via `benchmarks/inspect_model.cpp`.
 
 **Empirical Performance on a 20-Core CPU (2026-07-26):**
 
@@ -95,14 +102,11 @@ int main() {
         field.learn("def add ( a , b ) : return a + b");
     }
 
-    std::cout << field.forward("the little robot", 8) << "
-";
-    std::cout << field.forward("def add", 8) << "
-";
+    std::cout << field.forward("the little robot", 8) << "\n";
+    std::cout << field.forward("def add", 8) << "\n";
     for (const auto& link : field.nearest_token_links("robot", 4))
         std::cout << link.token << " ";
-    std::cout << "
-";
+    std::cout << "\n";
 }
 ```
 
@@ -140,8 +144,7 @@ int main() {
     field.learn("open intelligence should help people safely");
     field.learn("a safe assistant explains risks before giving advice");
 
-    std::cout << field.forward("open intelligence", 16) << "
-";
+    std::cout << field.forward("open intelligence", 16) << "\n";
 }
 ```
 
@@ -161,7 +164,7 @@ The project progressed through a series of architectural milestones, each valida
 | 9. Query-Space Alignment *(2026-07-26)* | Training and inference unified into a single coordinate space (cosine was 0.12) | 7.6x faster generation; keys carry prompt-specific direction |
 | 10. Translation Invariance + Double *(2026-07-26)* | Position-invariant wave kernels; SIMD math on double (`DZETA_REAL`) | Context transfers across offsets; cumulative 13x speedup |
 | 11. Structural Tokens + Half-PMI + Surprise Gating *(2026-07-26)* | Trainable syntax tokens; Half-PMI conditional-contrast scoring; error-driven learning | Code structure generation on MBPP; anti-collapse gap widened to 0.37 |
-| 12. Adelic Waves + Modular Helpers + RangeThreadPool *(2026-08)* | 9-wave ($3L 	imes 3p$) Gross-Pitaevskii accumulator with Strang symplectic splitting; machine-epsilon numerical guards | Non-Archimedean ultrametric hierarchy, decoupled utilities, exception-safe thread pool (verified in `tests/padic.cpp`; direct wiring into runtime candidate scoring pending calibration) |
+| 12. Adelic Waves + Modular Helpers + RangeThreadPool *(2026-08)* | 9-wave ($3L \times 3p$) Gross-Pitaevskii accumulator with Strang symplectic splitting; machine-epsilon numerical guards | Non-Archimedean ultrametric hierarchy, decoupled utilities, exception-safe thread pool (verified in `tests/padic.cpp`; direct wiring into runtime candidate scoring pending calibration) |
 
 ---
 
@@ -186,14 +189,14 @@ DZETA is an active research project. Claims are strictly backed by empirical tes
 - **Surprise-gated learning rule** providing error-driven prototype consolidation;
 - **Python code learning on MBPP** (974 functions) with keyword and operator emission;
 - **Adelic 9-wave Gross-Pitaevskii accumulator** with ultrametric coupling $J_{p,q} = 1/\max(p, q)$;
-- **Machine-epsilon numerical guards** ($N \cdot arepsilon \cdot 10$) defending against subnormal floats, `NaN`, and `Inf`;
+- **Machine-epsilon numerical guards** ($N \cdot \varepsilon \cdot 10$) defending against subnormal floats, `NaN`, and `Inf`;
 - **Complete 13-test regression suite** (`tests/padic.cpp` and 12 companion tests) passing with 100% success.
 
 > [!NOTE]
 > **Stage 12 Engine Integration Status**:
 > The `FieldWaveAdelicAccumulator`, ultrametric coupling kernel $J_{p,q}$, symplectic Strang phase splitting, and machine-epsilon numerical guards are fully implemented in [`src/dzeta/field_state.h`](src/dzeta/field_state.h) and mathematically verified by [`tests/padic.cpp`](tests/padic.cpp).
 >
-> In the active runtime loop of [`src/token_field.h`](src/token_field.h) (`learn()` and `forward()`), the engine currently employs the 3-wave multi-scale accumulator (Stage 10). This is a deliberate design choice: the 9-wave Gross-Pitaevskii nonlinear phase dynamics alter the metric geometry of state signatures, so hot-swapping it into the active routing path is scheduled after systematic hyperparameter calibration (`--dim-interference`, Half-PMI $eta$, and GPCC $\mu$) to avoid perturbing tuned deflation margins.
+> In the active runtime loop of [`src/token_field.h`](src/token_field.h) (`learn()` and `forward()`), the engine currently employs the 3-wave multi-scale accumulator (Stage 10). This is a deliberate design choice: the 9-wave Gross-Pitaevskii nonlinear phase dynamics alter the metric geometry of state signatures, so hot-swapping it into the active routing path is scheduled after systematic hyperparameter calibration (`--dim-interference`, Half-PMI $\beta$, and GPCC $\mu$) to avoid perturbing tuned deflation margins.
 
 ---
 
@@ -216,10 +219,10 @@ Saved models can be inspected directly. Token summaries and link queries reveal 
 
 Evaluated against standard baselines (Word2Vec Skip-gram, TF-IDF, Random) on a 20-line corpus slice via `benchmarks/evaluate_baselines.py`:
 * **Zero-Shot Generalization**: For words not appearing in the 20-line slice (e.g. `robot`, `bear`), Word2Vec and TF-IDF failed completely, yielding empty link lists. DZETA successfully mapped them to surrounding contexts via high-dimensional prime handles:
-  * `bear` $	o$ `everyone, helped, kind, school, spend, story`
+  * `bear` $\to$ `everyone, helped, kind, school, spend, story`
 * **Stopword Noise Suppression**: Standard vector spaces are dominated by grammatical stopwords. IDF-damping unmasks specific semantic links:
-  * `car` $	o$ `white, clever, chase, learned, new, played` (Word2Vec: `going, loud, healthy, fuel, street, fastest`)
-  * `family` $	o$ `job, each, love, take, dad, important` (Word2Vec: `take, important, join, decided, dependable`)
+  * `car` $\to$ `white, clever, chase, learned, new, played` (Word2Vec: `going, loud, healthy, fuel, street, fastest`)
+  * `family` $\to$ `job, each, love, take, dad, important` (Word2Vec: `take, important, join, decided, dependable`)
 
 ### Signal: Emergent Text Coherence under QPA and GPCC
 
@@ -249,6 +252,18 @@ observed experimental_overlap=0.46
 ### Signal: CPU-Only Feasibility
 
 The system runs on standard CPU hardware: ~32 ms/token generation and ~42 lines/sec story training at dim 2048 (20 cores), ~15.6 lines/sec on Python code. High-dimensional runs (9000 dim) use AVX2-class vectorization (`-march=x86-64-v3`), eliminating GPU requirements across training and inspection.
+
+Recent 9000-dimensional mixed-corpus smoke with AVX2-class build:
+
+```text
+compiler profile:    -O3 -march=x86-64-v3
+dimensions:          9000
+threads:             20
+target lines:        10
+dim_interference:    0.25
+elapsed:             16409 ms
+lines per second:    0.609422
+```
 
 ---
 
@@ -323,13 +338,29 @@ dzeta_padic passed: ultrametric and adelic 9-wave verification successful
 Compile the training utility:
 
 ```bash
-g++ -std=c++20 -O3 -march=x86-64-v3 -DDZETA_NATIVE_SIMD=1   -I src -I src/dzeta benchmarks/train_smoke.cpp -o dzeta_train_smoke
+g++ -std=c++20 -O3 -march=x86-64-v3 -DDZETA_NATIVE_SIMD=1 \
+  -I src -I src/dzeta benchmarks/train_smoke.cpp -o dzeta_train_smoke
 ```
 
 Execute training on a mixed corpus:
 
 ```bash
-./dzeta_train_smoke   --corpus benchmarks/data/hf_mixed_1000.txt   --seconds 0   --target-lines 10   --oscillators 65536   --dimensions 9000   --tokens 12   --temperature 1.0   --learning-rate 1.0   --threads 20   --parallel-min-dim 1   --shuffle-lines   --update-probability 0.8   --update-noise 0.001   --random-init-scale 0.001   --dim-interference 0.25
+./dzeta_train_smoke \
+  --corpus benchmarks/data/hf_mixed_1000.txt \
+  --seconds 0 \
+  --target-lines 10 \
+  --oscillators 65536 \
+  --dimensions 9000 \
+  --tokens 12 \
+  --temperature 1.0 \
+  --learning-rate 1.0 \
+  --threads 20 \
+  --parallel-min-dim 1 \
+  --shuffle-lines \
+  --update-probability 0.8 \
+  --update-noise 0.001 \
+  --random-init-scale 0.001 \
+  --dim-interference 0.25
 ```
 
 Key CLI flags:
@@ -346,13 +377,21 @@ Datasets are generated locally via scripts in `tools/`:
 
 ```bash
 # 1000-row sample of TinyStories
-python tools/fetch_hf_text_sample.py   --dataset roneneldan/TinyStories   --rows 1000   --output benchmarks/data/tinystories_sample.txt
+python tools/fetch_hf_text_sample.py \
+  --dataset roneneldan/TinyStories \
+  --rows 1000 \
+  --output benchmarks/data/tinystories_sample.txt
 
 # Balanced mixed Hugging Face corpus
-python tools/build_mixed_hf_corpus.py   --output benchmarks/data/hf_mixed_1000.txt   --stats benchmarks/data/hf_mixed_1000.stats.json   --seed 12345   --total 1000
+python tools/build_mixed_hf_corpus.py \
+  --output benchmarks/data/hf_mixed_1000.txt \
+  --stats benchmarks/data/hf_mixed_1000.stats.json \
+  --seed 12345 \
+  --total 1000
 
 # MBPP Python code corpus (974 functions)
-python tools/build_mbpp_code_corpus.py   --output benchmarks/data/mbpp_code_974.txt
+python tools/build_mbpp_code_corpus.py \
+  --output benchmarks/data/mbpp_code_974.txt
 ```
 
 ### Model Persistence & Inspection
@@ -364,9 +403,15 @@ DZETA supports two on-disk serialization formats:
 Compile and run the model inspector:
 
 ```bash
-g++ -std=c++20 -O3 -march=x86-64-v3   -I src -I src/dzeta benchmarks/inspect_model.cpp -o dzeta_inspect_model
+g++ -std=c++20 -O3 -march=x86-64-v3 \
+  -I src -I src/dzeta benchmarks/inspect_model.cpp -o dzeta_inspect_model
 
-./dzeta_inspect_model   --model benchmarks/models/dim9000_run.dzeta.bin   --top 20   --token child   --token forest   --prompt "The little robot"
+./dzeta_inspect_model \
+  --model benchmarks/models/dim9000_run.dzeta.bin \
+  --top 20 \
+  --token child \
+  --token forest \
+  --prompt "The little robot"
 ```
 
 The inspector reports top tokens and associations decomposed into transition, shared context, and p-adic components.
@@ -447,13 +492,14 @@ dzeta_prompt_deflation passed
 
 Replaced linear state updates with a wave model inspired by **Bose-Einstein Condensation (BEC)**:
 - **Gross-Pitaevskii Concept Condensation (GPCC):** Couples state vector evolution to the semantic landscape of active oscillators:
-  $$\Psi \leftarrow (1 - \mu) \Psi + \mu ec{\Psi}_{attraction}$$
+  $$\Psi \leftarrow (1 - \mu) \Psi + \mu \vec{\Psi}_{\text{attraction}}$$
   preventing diffusion into random noise.
 - **Quantum Prompt Anchoring (QPA):** Introduces a decaying harmonic trap:
-  $$\Psi_{anchored} = (1 - lpha) \Psi + lpha ec{\Psi}_{prompt}$$
+  $$\Psi_{\text{anchored}} = (1 - \alpha) \Psi + \alpha \vec{\Psi}_{\text{prompt}}$$
   keeping generation localized to the query.
-- **IDF-Dampened Nearest Links:** Filters high-frequency grammar stopwords (`was`, `and`, `to`) using Inverse Document Frequency.
-- **Incremental Signature Weyl Projections:** Accumulates prefix signatures incrementally ($ec{U}_N = ec{U}_{N-1} + ec{w}_{N-1}$), boosting training speed from 1.2 to 5.34 lines/sec at $D=992$.
+- **IDF-Dampened Nearest Links:** Filters high-frequency grammar stopwords (`was`, `and`, `to`) using Inverse Document Frequency:
+  $$\text{IDF}_i = \log \left( 1.0 + \frac{\text{Total Observations}}{1.0 + \text{observations}_i} \right)$$
+- **Incremental Signature Weyl Projections:** Accumulates prefix signatures incrementally ($\vec{U}_N = \vec{U}_{N-1} + \vec{w}_{N-1}$), boosting training speed from 1.2 to 5.34 lines/sec at $D=992$.
 
 ### 9. Query-Space Alignment And Bit-Deterministic Parallel Generation
 
@@ -463,12 +509,12 @@ Audit revealed that `learn()` built projections in raw code token space with `##
 - Rollout lookahead switched to top-scored candidates.
 - Seeded generator adopted for deterministic temperature sampling.
 - Spectral dither restarted at block boundaries, guaranteeing bit-identical output across any thread count.
-- Large-vocabulary generation accelerated ~7.6x (425.8 $	o$ 56.0 ms/token at dim 2048).
+- Large-vocabulary generation accelerated ~7.6x (425.8 $\to$ 56.0 ms/token at dim 2048).
 
 ### 10. Translation-Invariant Multi-Scale Waves, Double Precision, Loop Control
 
 Eliminated position-absolute wave seeds:
-- **Multi-scale context waves** (`src/dzeta/field_state.h`): Tokens at distance $d$ contribute $\lambda_h^d \cdot 	ext{Rot}(\omega_h d) \cdot 	ext{wave}(token)$ across 3 horizons (4/12/48 tokens). Shift transfer reached 0.94 (was ~0.0).
+- **Multi-scale context waves** (`src/dzeta/field_state.h`): Tokens at distance $d$ contribute $\lambda_h^d \cdot \text{Rot}(\omega_h d) \cdot \text{wave}(token)$ across 3 horizons (4/12/48 tokens). Shift transfer reached 0.94 (was ~0.0).
 - **Double precision hot path (`DZETA_REAL`):** Cumulative generation speedup reached ~13x (31.9 ms/token at dim 2048).
 - **Cycle-aware repetition control:** Distance penalties, n-gram cycle damping, and ban-consistent rollout eliminated periodic repetition loops.
 - **Compact persistence v3:** Max-abs int16 quantization reducing vector footprint ~8x.
@@ -477,22 +523,28 @@ Eliminated position-absolute wave seeds:
 
 Addressed failure to emit syntax keywords on the MBPP Python dataset:
 - **Structural tokens:** Punctuation and operators train as context-anchored milestones (key == query == context projection) and remain emittable.
-- **Half-PMI scoring:** Replaced frequency penalties with count prior $1/(1 + 0.02\sqrt{	ext{obs}})$ and conditional-contrast drive $|dm| \cdot \max(1 - eta \cdot 	ext{center\_fit}, 0.15)$.
+- **Half-PMI scoring:** Replaced frequency penalties with count prior $1/(1 + 0.02\sqrt{\text{obs}})$ and conditional-contrast drive $|dm| \cdot \max(1 - \beta \cdot \text{center\_fit}, 0.15)$.
 - **Surprise-gated learning rule:** Error-driven update rates (cap 1.6 for novel contexts, floor 0.22 for predictable repeats) with prototype-level credit assignment.
-- Generation on MBPP shifted from bare identifier streams to code-shaped mixtures (`def is_prime` $	o$ `result False key sum ... while <= mid elif`). Prompt overlap on mixed text dropped to 0.00, and the deflation gap widened to 0.37.
+- Generation on MBPP shifted from bare identifier streams to code-shaped mixtures (`def is_prime` $\to$ `result False key sum ... while <= mid elif`). Prompt overlap on mixed text dropped to 0.00, and the deflation gap widened to 0.37.
 
 ### 12. Adelic Wave Dynamics, Symplectic Strang Splitting & Numerical Hardening
 
-A non-Archimedean multi-prime state space expansion: **Adelic Wave Dynamics** (`src/dzeta/field_state.h`). Expands the state space into an adelic cross-product of 3 temporal horizons and 3 $p$-adic branches ($p \in \{2, 3, 5\}$), yielding a 9-wave concurrent accumulator ($3L 	imes 3p$).
+A non-Archimedean multi-prime state space expansion: **Adelic Wave Dynamics** (`src/dzeta/field_state.h`). Expands the state space into an adelic cross-product of 3 temporal horizons and 3 $p$-adic branches ($p \in \{2, 3, 5\}$), yielding a 9-wave concurrent accumulator ($3L \times 3p$).
 
 Key components:
 - **Adelic 9-Wave Field Accumulator (`FieldWaveAdelicAccumulator`):** 9 rotating wave states $\psi_{h, p} \in \mathbb{C}^{W/2}$ with damping $\lambda_{h, p} = \exp(-p / L_h)$ and RoPE-style intra-block frequency spreading.
 - **Non-Archimedean Ultrametric Coupling ($J_{p, q}$):** Governed by kernel $J_{p, q} = 1/\max(p, q)$, enforcing hierarchical prime dominance.
 - **Symplectic Strang Splitting:** Integrates Gross-Pitaevskii cubic nonlinearities $i \kappa \sum_q J_{p, q} |\psi_q|^2 \psi_p$ via exact unitary phase rotations, conserving $|\psi_{h, p}|^2$ bit-identically without numerical dissipation.
 - **Decoupled Architecture (`src/dzeta/math_helpers.h`):** Extracted FNV-1a, SplitMix64, and generic normalization/cosine routines into an isolated leaf header, eliminating circular dependencies.
-- **Machine-Epsilon Numerical Guards:** Scaled thresholds ($	ext{dim} \cdot arepsilon \cdot 10$) with `std::isfinite` guards intercepting NaNs and infinities.
+- **Machine-Epsilon Numerical Guards:** Scaled thresholds ($\text{dim} \cdot \varepsilon \cdot 10$) with `std::isfinite` guards intercepting NaNs and infinities.
 - **Exception-Safe Parallelism (`src/dzeta/thread_pool.h`):** `RangeThreadPool` with generation-counted condition variables and re-thrown thread exceptions.
 - **Verified Ultrametric Suite (`tests/padic.cpp`):** Verifies $p$-adic valuation $\|p^k\|_p = p^{-k}$ and the ultrametric triangle inequality $\|x + y\|_p \le \max(\|x\|_p, \|y\|_p)$.
+
+> [!NOTE]
+> **Stage 12 Engine Integration Status**:
+> The `FieldWaveAdelicAccumulator`, ultrametric coupling kernel $J_{p,q}$, symplectic Strang phase splitting, and machine-epsilon numerical guards are fully implemented in [`src/dzeta/field_state.h`](src/dzeta/field_state.h) and mathematically verified by [`tests/padic.cpp`](tests/padic.cpp).
+>
+> In the active runtime loop of [`src/token_field.h`](src/token_field.h) (`learn()` and `forward()`), the engine currently employs the 3-wave multi-scale accumulator (Stage 10). This is a deliberate design choice: the 9-wave Gross-Pitaevskii nonlinear phase dynamics alter the metric geometry of state signatures, so hot-swapping it into the active routing path is scheduled after systematic hyperparameter calibration (`--dim-interference`, Half-PMI $\beta$, and GPCC $\mu$) to avoid perturbing tuned deflation margins.
 
 ---
 
