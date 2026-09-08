@@ -2313,7 +2313,7 @@ private:
     }
 
     std::size_t effective_thread_count(std::size_t work_items) const noexcept {
-        if (thread_count_ <= 1 || work_items < parallel_min_dimensions_ || work_items <= 1) {
+        if (thread_count_ <= 1 || dim_ < parallel_min_dimensions_ || work_items <= 1) {
             return 1;
         }
         return std::min(thread_count_, work_items);
@@ -3034,6 +3034,59 @@ private:
         if (count == 0) {
             return 0.0;
         }
+#if defined(__AVX2__) && defined(__FMA__)
+        if constexpr (std::is_same_v<dz_real, double>) {
+            const double* l_ptr = reinterpret_cast<const double*>(left.data());
+            const double* r_ptr = reinterpret_cast<const double*>(right.data());
+            const std::size_t total_doubles = count * 2;
+            __m256d acc_rr_ii0 = _mm256_setzero_pd();
+            __m256d acc_rr_ii1 = _mm256_setzero_pd();
+            __m256d acc_ri_ir0 = _mm256_setzero_pd();
+            __m256d acc_ri_ir1 = _mm256_setzero_pd();
+            const __m256d sign_mask = _mm256_set_pd(-1.0, 1.0, -1.0, 1.0);
+
+            std::size_t i = 0;
+            for (; i + 8 <= total_doubles; i += 8) {
+                __m256d l0 = _mm256_loadu_pd(l_ptr + i);
+                __m256d r0 = _mm256_loadu_pd(r_ptr + i);
+                __m256d l1 = _mm256_loadu_pd(l_ptr + i + 4);
+                __m256d r1 = _mm256_loadu_pd(r_ptr + i + 4);
+
+                acc_rr_ii0 = _mm256_fmadd_pd(l0, r0, acc_rr_ii0);
+                acc_rr_ii1 = _mm256_fmadd_pd(l1, r1, acc_rr_ii1);
+
+                __m256d r_swap0 = _mm256_permute_pd(r0, 0b0101);
+                __m256d r_swap1 = _mm256_permute_pd(r1, 0b0101);
+
+                acc_ri_ir0 = _mm256_fmadd_pd(_mm256_mul_pd(l0, sign_mask), r_swap0, acc_ri_ir0);
+                acc_ri_ir1 = _mm256_fmadd_pd(_mm256_mul_pd(l1, sign_mask), r_swap1, acc_ri_ir1);
+            }
+            acc_rr_ii0 = _mm256_add_pd(acc_rr_ii0, acc_rr_ii1);
+            acc_ri_ir0 = _mm256_add_pd(acc_ri_ir0, acc_ri_ir1);
+
+            for (; i + 4 <= total_doubles; i += 4) {
+                __m256d l = _mm256_loadu_pd(l_ptr + i);
+                __m256d r = _mm256_loadu_pd(r_ptr + i);
+                acc_rr_ii0 = _mm256_fmadd_pd(l, r, acc_rr_ii0);
+                __m256d r_swap = _mm256_permute_pd(r, 0b0101);
+                acc_ri_ir0 = _mm256_fmadd_pd(_mm256_mul_pd(l, sign_mask), r_swap, acc_ri_ir0);
+            }
+
+            alignas(32) double res_real[4];
+            alignas(32) double res_imag[4];
+            _mm256_storeu_pd(res_real, acc_rr_ii0);
+            _mm256_storeu_pd(res_imag, acc_ri_ir0);
+
+            double real_sum = res_real[0] + res_real[1] + res_real[2] + res_real[3];
+            double imag_sum = res_imag[0] + res_imag[1] + res_imag[2] + res_imag[3];
+
+            for (std::size_t c = i / 2; c < count; ++c) {
+                real_sum += left[c].real() * right[c].real() + left[c].imag() * right[c].imag();
+                imag_sum += left[c].real() * right[c].imag() - left[c].imag() * right[c].real();
+            }
+            return std::clamp<dz_real>(std::sqrt(real_sum * real_sum + imag_sum * imag_sum), 0.0, 1.0);
+        }
+#endif
         cx dot = 0;
         for (std::size_t i = 0; i < count; ++i) {
             dot += conjugate_multiply(left[i], right[i]);
@@ -3190,11 +3243,41 @@ private:
     }
 
     static dz_real normalized_cosine(const std::vector<dz_real>& left,
-                                         const std::vector<dz_real>& right) {
+                                     const std::vector<dz_real>& right) {
         const std::size_t count = std::min(left.size(), right.size());
         if (count == 0) {
             return 0.0;
         }
+#if defined(__AVX2__) && defined(__FMA__)
+        if constexpr (std::is_same_v<dz_real, double>) {
+            const double* l_ptr = left.data();
+            const double* r_ptr = right.data();
+            __m256d dot0 = _mm256_setzero_pd();
+            __m256d dot1 = _mm256_setzero_pd();
+            std::size_t i = 0;
+            for (; i + 8 <= count; i += 8) {
+                __m256d l0 = _mm256_loadu_pd(l_ptr + i);
+                __m256d r0 = _mm256_loadu_pd(r_ptr + i);
+                __m256d l1 = _mm256_loadu_pd(l_ptr + i + 4);
+                __m256d r1 = _mm256_loadu_pd(r_ptr + i + 4);
+                dot0 = _mm256_fmadd_pd(l0, r0, dot0);
+                dot1 = _mm256_fmadd_pd(l1, r1, dot1);
+            }
+            dot0 = _mm256_add_pd(dot0, dot1);
+            for (; i + 4 <= count; i += 4) {
+                __m256d l = _mm256_loadu_pd(l_ptr + i);
+                __m256d r = _mm256_loadu_pd(r_ptr + i);
+                dot0 = _mm256_fmadd_pd(l, r, dot0);
+            }
+            alignas(32) double res[4];
+            _mm256_storeu_pd(res, dot0);
+            double sum = res[0] + res[1] + res[2] + res[3];
+            for (; i < count; ++i) {
+                sum += left[i] * right[i];
+            }
+            return std::clamp<dz_real>(sum, -1.0, 1.0);
+        }
+#endif
         dz_real dot = 0.0;
         for (std::size_t i = 0; i < count; ++i) {
             dot += left[i] * right[i];
@@ -3489,6 +3572,11 @@ private:
                     const auto& padic =
                         has_prototype ? oscs_[i].prototypes[p].padic_signature : oscs_[i].padic_signature;
                     const dz_real spectral_match = normalized_complex_similarity(key, target_key);
+                    // Mathematical upper-bound: max padic_match is 1.0. If 0.84 * spectral_match + 0.16 <= margin,
+                    // score cannot possibly exceed contrastive_margin_, so skip padic dot product entirely.
+                    if (0.84 * spectral_match + 0.16 <= contrastive_margin_) {
+                        continue;
+                    }
                     const dz_real padic_match = 0.5 + 0.5 * normalized_cosine(padic, target_padic);
                     const dz_real score = 0.84 * spectral_match + 0.16 * padic_match;
                     if (score > contrastive_margin_) {
