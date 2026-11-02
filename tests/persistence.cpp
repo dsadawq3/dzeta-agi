@@ -11,6 +11,9 @@ int main() {
     field.set_dimension_interference(0.02L);
     field.set_thread_count(2);
     field.set_parallel_min_dimensions(1);
+    // Non-default scoring knobs must survive the round trip.
+    field.set_contrast_beta(0.9L);
+    field.set_surprise_floor(0.4L);
 
     for (int i = 0; i < 4; ++i) {
         field.learn("red apple grows sweet fruit beside a warm kitchen");
@@ -35,6 +38,8 @@ int main() {
     assert(loaded.size() == before_size);
     assert(loaded.observation_count() == before_observations);
     assert(loaded.dimension_interference() > 0.019L);
+    assert(loaded.contrast_beta() == field.contrast_beta());
+    assert(loaded.surprise_floor() == field.surprise_floor());
     assert(loaded.forward("red apple", 6) == before);
 
     std::filesystem::remove(path);

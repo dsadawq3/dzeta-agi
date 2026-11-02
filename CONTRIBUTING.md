@@ -14,12 +14,12 @@ cd dzeta-agi
 g++ -std=c++20 -O2 -I src -I src/dzeta tests/smoke.cpp -o dzeta_smoke && ./dzeta_smoke
 ```
 
-The whole core is header-only C++20 with zero dependencies. All 12 tests must
+The whole core is header-only C++20 with zero dependencies. All 13 tests must
 pass before and after your change:
 
 ```bash
 for t in smoke learning parallel persistence persistence_v3 stochastic tokenizer \
-         prompt_deflation determinism wave_invariance translation_transfer repetition; do
+         prompt_deflation determinism wave_invariance translation_transfer repetition padic; do
   g++ -std=c++20 -O2 -I src -I src/dzeta tests/$t.cpp -o dzeta_$t && ./dzeta_$t || break
 done
 ```
@@ -28,7 +28,7 @@ done
 
 1. **The zeta-vs-random ablation** — the most important open experiment.
    Replace the zeta-zero frequencies with random incommensurate frequencies
-   and rerun the 12 tests + the MBPP protocol
+   and rerun the 13 tests + the MBPP protocol
    (`docs/experiments/2026-07-26-mbpp-code-learning.md`). If metrics do not
    move, the number-theoretic basis is decoration; if they move, it is the
    first measured evidence it matters. Either answer is publishable here.

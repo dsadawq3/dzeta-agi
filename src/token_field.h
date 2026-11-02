@@ -57,6 +57,8 @@ using dz_real = DZETA_REAL;
 using cx = std::complex<dz_real>;
 
 inline dz_real padic_norm(dz_real x, std::uint32_t p) {
+    // Non-finite input or p < 2 would never leave the scaling loops below.
+    if (p < 2 || !std::isfinite(x)) return 0.0;
     if (std::abs(x) < 1e-30) return 0.0;
     dz_real v = 0, ax = std::abs(x);
     while (ax > 1.0) { ax /= p; v += 1.0; }
@@ -1262,6 +1264,9 @@ public:
                 inhibit_range(0, K);
             }
             if (generation_temperature_ > 0.01 && inhibited.size() > 1) {
+                // Inhibition reorders scores, so re-rank before taking the
+                // sampling pool; otherwise it is the pre-inhibition top-16.
+                std::stable_sort(inhibited.begin(), inhibited.end(), by_score);
                 const std::size_t sample_k = std::min<std::size_t>(16, inhibited.size());
                 std::vector<dz_real> probs(sample_k);
                 for (std::size_t i = 0; i < sample_k; ++i) {
@@ -1598,6 +1603,9 @@ public:
         surprise_floor_ = std::clamp<dz_real>(floor, 0.05, 1.0);
     }
 
+    dz_real contrast_beta() const noexcept { return contrast_beta_; }
+    dz_real surprise_floor() const noexcept { return surprise_floor_; }
+
     dz_real dimension_interference() const noexcept { return dimension_interference_; }
 
     void set_thread_count(std::size_t count) noexcept {
@@ -1669,6 +1677,13 @@ private:
     static constexpr std::string_view model_magic() noexcept { return "DZETA_OSC_FIELD"; }
     static constexpr std::uint32_t model_version() noexcept { return 2U; }
     static constexpr std::uint32_t model_version_compact() noexcept { return 3U; }
+    // Optional trailer after the oscillators carrying scoring knobs. Files
+    // without it (older builds) load with defaults; older builds stop reading
+    // before it, so the layout stays compatible in both directions.
+    static constexpr std::string_view scoring_trailer_magic() noexcept { return "DZETA_SCORING"; }
+    static constexpr dz_real default_contrast_beta = 1.25;
+    static constexpr dz_real default_contrast_floor = 0.15;
+    static constexpr dz_real default_surprise_floor = 0.22;
     // Scheme tag inside v3 files so a future codec does not need another
     // version bump; 0 is reserved as invalid to catch zero-filled corruption.
     static constexpr std::uint8_t quant_scheme_int16_maxabs = 1U;
@@ -2094,6 +2109,11 @@ private:
         for (const auto& oscillator : oscs_) {
             write_token_oscillator(output, oscillator, compact);
         }
+
+        write_string(output, scoring_trailer_magic());
+        write_real(output, contrast_beta_);
+        write_real(output, contrast_floor_);
+        write_real(output, surprise_floor_);
     }
 
     void read_model(std::istream& input) {
@@ -2171,6 +2191,26 @@ private:
             }
             token_index_[oscillator.token] = oscs_.size();
             oscs_.push_back(std::move(oscillator));
+        }
+
+        contrast_beta_ = default_contrast_beta;
+        contrast_floor_ = default_contrast_floor;
+        surprise_floor_ = default_surprise_floor;
+        if (input.peek() != std::char_traits<char>::eof()) {
+            std::string trailer;
+            read_string(input, trailer, "scoring_trailer");
+            if (trailer != scoring_trailer_magic()) {
+                throw std::runtime_error("unknown dzeta model trailer");
+            }
+            read_real(input, contrast_beta_);
+            read_real(input, contrast_floor_);
+            read_real(input, surprise_floor_);
+            if (!input) {
+                throw std::runtime_error("truncated dzeta scoring trailer");
+            }
+            contrast_beta_ = std::clamp<dz_real>(contrast_beta_, 0.0, 2.0);
+            contrast_floor_ = std::clamp<dz_real>(contrast_floor_, 0.0, 1.0);
+            surprise_floor_ = std::clamp<dz_real>(surprise_floor_, 0.05, 1.0);
         }
     }
 
@@ -3686,9 +3726,9 @@ private:
     dz_real update_noise_ = 0.0;
     dz_real random_init_scale_ = 0.0;
     dz_real dimension_interference_ = 0.0;
-    dz_real contrast_beta_ = 1.25;
-    dz_real contrast_floor_ = 0.15;
-    dz_real surprise_floor_ = 0.22;
+    dz_real contrast_beta_ = default_contrast_beta;
+    dz_real contrast_floor_ = default_contrast_floor;
+    dz_real surprise_floor_ = default_surprise_floor;
     std::size_t max_prototypes_per_token_ = 4;
     std::size_t max_hard_negatives_ = 4;
     std::size_t max_context_tokens_ = 24;

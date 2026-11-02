@@ -18,7 +18,7 @@
 > 🧠 **The Breakthrough: Infinite Continuous Memory & Real-Time Online Learning**
 > - **Zero KV-Cache Explosion:** Unlike Transformers that choke on long conversations (VRAM exploding with $O(N)$ memory and $O(N^2)$ computation), DZETA records new information as wave interference in a fixed harmonic oscillator field. Memory footprint stays constant regardless of conversation length.
 > - **Continuous Online Learning (`learn()`):** Traditional LLMs have permanently frozen weights. DZETA absorbs new knowledge continuously in a single forward pass directly in CPU RAM without backpropagation, gradient descent, or catastrophic forgetting.
-> - **Blazing Fast CPU Native:** Runs at **~3.5 ms per token** on a standard laptop CPU using native C++20 (AVX2/FMA) with zero Python, zero CUDA, and zero external dependencies.
+> - **Blazing Fast CPU Native:** Generates at **~32 ms per token** at dim 2048 on a 20-core desktop CPU using native C++20 (AVX2/FMA) with zero Python, zero CUDA, and zero external dependencies.
 > - 📦 **Precompiled Weights & Windows CLI:** [huggingface.co/F-Labs/dzeta-agi](https://huggingface.co/F-Labs/dzeta-agi)
 
 DZETA treats text as impulses into a mathematical field: spectral memory over a zeta-zero basis, adaptive token oscillators, contrastive routing, and prompt-conditioned geometry instead of attention layers. No backprop, no GPU, no pretrained weights — training is one pass of `learn()` over plain text, and every learned association can be queried back out.

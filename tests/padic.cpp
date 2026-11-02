@@ -1,3 +1,4 @@
+#include "token_field.h"
 #include "field_state.h"
 #include "math_helpers.h"
 
@@ -10,27 +11,9 @@
 #include <string>
 #include <vector>
 
-using dz_real = double;
-
-inline dz_real padic_norm(dz_real x, std::uint32_t p) {
-    if (p < 2) return 0.0;
-    if (!std::isfinite(x)) return 0.0;
-    if (std::abs(x) < 1e-30) return 0.0;
-    dz_real ax = std::abs(x);
-    dz_real log_p = std::log(static_cast<dz_real>(p));
-    if (!std::isfinite(log_p) || log_p <= 0) return 0.0;
-    dz_real v = std::floor(std::log(ax) / log_p);
-    v = std::clamp(v, static_cast<dz_real>(-300), static_cast<dz_real>(300));
-    dz_real pow_p_v = std::pow(static_cast<dz_real>(p), v);
-    if (std::isfinite(pow_p_v) && pow_p_v > 0) {
-        dz_real scaled = ax / pow_p_v;
-        if (scaled >= static_cast<dz_real>(p) && v < 300) v += 1;
-        else if (scaled < 1.0 && v > -300) v -= 1;
-    }
-    dz_real r = std::pow(static_cast<dz_real>(p), -v);
-    if (!std::isfinite(r)) return 0.0;
-    return r;
-}
+// Test the library's padic_norm, not a local copy that could drift from it.
+using dzeta::dz_real;
+using dzeta::padic_norm;
 
 int main() {
     // 1. Basic p-adic norm properties
